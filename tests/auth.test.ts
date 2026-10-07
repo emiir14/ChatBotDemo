@@ -19,9 +19,10 @@ describe("sesión firmada", () => {
     const now = Math.floor(Date.now() / 1000);
     const token = await createSessionToken(now);
     expect(await verifySessionToken(token, now + 60)).toBe(true);
-    // Adulterada
+    // Adulterada (cambia el primer char sí o sí)
     const [exp, sig] = token.split(".");
-    expect(await verifySessionToken(`${exp}.0${sig.slice(1)}`, now + 60)).toBe(false);
+    const flipped = (sig[0] === "0" ? "1" : "0") + sig.slice(1);
+    expect(await verifySessionToken(`${exp}.${flipped}`, now + 60)).toBe(false);
     // Vencida (7 días + 1 s)
     expect(await verifySessionToken(token, now + 7 * 24 * 60 * 60 + 1)).toBe(false);
     // Malformadas

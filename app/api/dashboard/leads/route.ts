@@ -11,6 +11,7 @@ const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   // Cola de acción: requiere_humano sin atender, o calientes sin atender.
   onlyAction: z.enum(["true", "false"]).default("false"),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 const PAGE_SIZE = 20;
@@ -24,11 +25,12 @@ export async function GET(req: Request): Promise<NextResponse> {
     q: url.searchParams.get("q") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
     onlyAction: url.searchParams.get("onlyAction") ?? undefined,
+    limit: url.searchParams.get("limit") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Filtros inválidos" }, { status: 400 });
   }
-  const { temperatura, estado, q, page, onlyAction } = parsed.data;
+  const { temperatura, estado, q, page, onlyAction, limit } = parsed.data;
   const supabase = getSupabaseAdmin();
 
   let query = supabase
@@ -66,12 +68,13 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   const from = (page - 1) * PAGE_SIZE;
-  const { data, count, error } = await query.range(from, from + PAGE_SIZE - 1);
+  const size = onlyAction === "true" ? 20 : limit;
+  const { data, count, error } = await query.range(from, from + size - 1);
   if (error) {
     return NextResponse.json(
       { error: `No se pudieron cargar los leads: ${error.message}` },
       { status: 500 },
     );
   }
-  return NextResponse.json({ items: data ?? [], total: count ?? 0, page, pageSize: PAGE_SIZE });
+  return NextResponse.json({ items: data ?? [], total: count ?? 0, page, pageSize: size });
 }

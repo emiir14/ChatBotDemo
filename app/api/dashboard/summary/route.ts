@@ -26,6 +26,7 @@ interface SummaryJson {
   requieren_humano: number;
   fuera_horario: number;
   demo_count: number;
+  mensajes: number;
   first_responses: number[];
 }
 
@@ -59,15 +60,18 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const cur = periodRange(period);
   const prev = previousRange(cur);
+  const today = periodRange("today");
   const iso = (d: Date): string => d.toISOString();
 
-  const [curRes, prevRes, heatRes, dailyRes, modelsRes, stockRes] = await Promise.all([
+  const [curRes, prevRes, todayRes, heatRes, dailyRes, modelsRes, stockRes, stockSettingsRes] = await Promise.all([
     supabase.rpc("dashboard_summary", { p_from: iso(cur.from), p_to: iso(cur.to) }),
     supabase.rpc("dashboard_summary", { p_from: iso(prev.from), p_to: iso(prev.to) }),
+    supabase.rpc("dashboard_summary", { p_from: iso(today.from), p_to: iso(today.to) }),
     supabase.rpc("dashboard_heatmap", { p_from: iso(cur.from), p_to: iso(cur.to) }),
     supabase.rpc("dashboard_daily", { p_from: iso(cur.from), p_to: iso(cur.to) }),
     supabase.rpc("dashboard_models", { p_from: iso(cur.from), p_to: iso(cur.to) }),
     supabase.from("vehicles").select("modelo").eq("estado", "disponible"),
+    supabase.from("stock_settings").select("updated_at,stale_days").eq("id", 1).maybeSingle(),
   ]);
 
   if (curRes.error || prevRes.error) {
@@ -79,6 +83,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const curJson = curRes.data as SummaryJson;
   const prevJson = prevRes.data as SummaryJson;
+  const todayJson = (todayRes.data ?? {}) as Partial<SummaryJson>;
   const cells = (heatRes.data ?? []) as HeatCell[];
   const daily = ((dailyRes.data ?? []) as Array<{ day: string; n: number }>).map(
     (d) => ({ day: d.day, n: Number(d.n) }),
@@ -127,11 +132,20 @@ export async function GET(req: Request): Promise<NextResponse> {
     pico,
   });
 
+  // Frescura del stock (alerta si supera el umbral configurable).
+  const st = (stockSettingsRes.data as { updated_at?: string; stale_days?: number } | null) ?? {};
+  const stockUpdatedAt = st.updated_at ?? null;
+  const staleDays = st.stale_days ?? 2;
+  const daysSinceUpdate = stockUpdatedAt
+    ? (Date.now() - new Date(stockUpdatedAt).getTime()) / (24 * 60 * 60 * 1000)
+    : null;
+
   return NextResponse.json({
     period,
     site: { name: site.name, humanReplyReference: site.humanReplyReferenceLabel },
     hasDemoData: curJson.demo_count > 0,
     metrics: {
+      hoy: { value: todayJson.consultas ?? 0 },
       atendidas: { value: curJson.atendidas, variation: variation(curJson.atendidas, prevJson.atendidas) },
       primeraRespuestaSeg: { value: mediana, variation: null },
       fueraHorario: { value: curJson.fuera_horario, variation: variation(curJson.fuera_horario, prevJson.fuera_horario) },
@@ -140,6 +154,8 @@ export async function GET(req: Request): Promise<NextResponse> {
         value: curJson.consultas > 0 ? (curJson.calificados / curJson.consultas) * 100 : 0,
         variation: null,
       },
+      mensajes: { value: curJson.mensajes ?? 0 },
+      derivados: { value: curJson.derivados, variation: variation(curJson.derivados, prevJson.derivados) },
     },
     funnel,
     heatmap: cells,
@@ -147,5 +163,11 @@ export async function GET(req: Request): Promise<NextResponse> {
     modelsVsStock,
     insights,
     actionCount: curJson.requieren_humano,
+    stock: {
+      updatedAt: stockUpdatedAt,
+      staleDays,
+      daysSinceUpdate,
+      isStale: daysSinceUpdate !== null && daysSinceUpdate > staleDays,
+    },
   });
 }

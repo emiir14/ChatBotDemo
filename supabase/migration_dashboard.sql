@@ -94,6 +94,10 @@ as $$
       where public.is_outside_business_hours(first_message_at)
     ),
     'demo_count', (select count(*) from base where origen_demo is true),
+    'mensajes', (
+      select count(*) from public.messages m
+      where m.created_at >= p_from and m.created_at < p_to
+    ),
     'first_responses', coalesce((
       select jsonb_agg(s order by s)
       from (

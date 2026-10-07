@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildActivity } from "@/lib/activity";
 import {
   buildFunnel,
   buildInsights,
@@ -88,5 +89,32 @@ describe("buildInsights", () => {
         pico: null,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("buildActivity", () => {
+  const base = {
+    id: "m1",
+    texto: "Hola",
+    created_at: "2026-10-07T12:00:00Z",
+    lead_id: "l1",
+    lead_nombre: "Ana",
+    lead_requiere: false,
+    lead_first: "2026-10-07T12:00:00Z",
+  };
+  it("clasifica nuevo lead, mensaje, respuesta y derivado", () => {
+    const items = buildActivity([
+      { ...base, rol: "cliente" },
+      { ...base, id: "m2", created_at: "2026-10-07T13:00:00Z", lead_first: "2026-10-07T12:00:00Z", rol: "cliente" },
+      { ...base, id: "m3", rol: "bot" },
+      { ...base, id: "m4", rol: "bot", lead_requiere: true },
+    ]);
+    expect(items.map((i) => i.kind)).toEqual([
+      "nuevo_lead",
+      "mensaje_cliente",
+      "respuesta_bot",
+      "derivado",
+    ]);
+    expect(items[0].text).toContain("Ana");
   });
 });

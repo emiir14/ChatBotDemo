@@ -41,7 +41,23 @@ async function main(): Promise<void> {
   // Shims solo locales: en Supabase estos roles ya existen.
   await db.exec("CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;");
   await run("supabase/migration_dashboard.sql");
+  await run("supabase/migration_stock.sql");
 
+  // Stock: códigos únicos, settings y change log
+  const cods = await db.query<{ n: number }>(
+    "SELECT count(*)::int AS n FROM vehicles WHERE codigo IS NULL",
+  );
+  assert((cods.rows[0] as { n: number }).n === 0, "todos los vehículos con código");
+  const dup = await db.query<{ n: number }>(
+    "SELECT count(*)::int AS n FROM (SELECT codigo FROM vehicles GROUP BY 1 HAVING count(*) > 1) t",
+  );
+  assert((dup.rows[0] as { n: number }).n === 0, "códigos únicos");
+  const st = await db.query("SELECT * FROM stock_settings WHERE id = 1");
+  assert(st.rows.length === 1, "stock_settings con fila única");
+  await db.exec(
+    "INSERT INTO stock_changes (codigo, accion, detalle) VALUES ('STK-001', 'estado', 'test');",
+  );
+  assert(true, "stock_changes acepta inserts");
   assert((await one<number>("SELECT count(*)::int AS v FROM vehicles")) === 20, "20 vehículos");
   assert((await one<number>("SELECT count(*)::int AS v FROM leads WHERE origen_demo")) === 12, "12 leads demo iniciales");
 

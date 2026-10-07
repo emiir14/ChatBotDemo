@@ -1,14 +1,32 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import useSWR from "swr";
-import { Flame, MessageCircle, UserCheck } from "lucide-react";
-import { Header, type Period } from "@/components/dashboard/Header";
-import { ErrorBox, MetricSkeleton, SectionTitle } from "@/components/dashboard/ui";
-import { Funnel, Heatmap, Insights, MetricCard, ModelsVsStock } from "@/components/dashboard/panels";
+import {
+  AlertTriangle,
+  BarChart3,
+  CalendarClock,
+  Flame,
+  Gauge,
+  MessageCircle,
+  MessageSquareText,
+  MoonStar,
+  PhoneForwarded,
+  Sparkles,
+  Table2,
+  Timer,
+  UserCheck,
+  Zap,
+} from "lucide-react";
+import { Shell, type Period } from "@/components/dashboard/Header";
+import { EmptyBox, ErrorBox, MetricSkeleton, TempBadge } from "@/components/dashboard/ui";
+import { Funnel, Heatmap, Insights, ModelsVsStock } from "@/components/dashboard/panels";
+import { ActivityFeed, KpiCard, SectionHead } from "@/components/dashboard/motion";
 import { LeadsTable, type LeadFilters } from "@/components/dashboard/LeadsTable";
 import { formatDurationShort } from "@/lib/metrics";
+import type { ActivityItem } from "@/lib/activity";
 import { formatPhone, maskPhoneFull, timeAgo } from "@/lib/format";
 import type { LeadRow, LeadsResponse, StatusResponse, SummaryResponse } from "@/components/dashboard/types";
 
@@ -50,9 +68,6 @@ export default function DashboardPage(): JSX.Element {
   const [presentation, setPresentation] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
-  const [noMotion] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
   const visible = useVisible();
   const knownIds = useRef<Set<string> | null>(null);
   const prevChange = useRef<string | null>(null);
@@ -64,7 +79,6 @@ export default function DashboardPage(): JSX.Element {
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 8000);
   }, []);
 
-  // 1. Polling liviano cada 4 s (pausado si la pestaña no está visible).
   const { data: status } = useSWR<StatusResponse>("/api/dashboard/status", json, {
     refreshInterval: visible ? 4000 : 0,
     revalidateOnFocus: false,
@@ -89,13 +103,19 @@ export default function DashboardPage(): JSX.Element {
     { revalidateOnFocus: false },
   );
 
+  const { data: activity, mutate: mutateActivity } = useSWR<{ items: ActivityItem[] }>(
+    "/api/dashboard/activity",
+    json,
+    { revalidateOnFocus: false },
+  );
+
   const refreshAll = useCallback(() => {
     mutateSummary();
     mutateLeads();
     mutateQueue();
-  }, [mutateSummary, mutateLeads, mutateQueue]);
+    mutateActivity();
+  }, [mutateSummary, mutateLeads, mutateQueue, mutateActivity]);
 
-  // 2. Si el status cambió, refrescar datos completos.
   useEffect(() => {
     if (!status) return;
     if (prevChange.current !== null && status.lastChange !== prevChange.current) {
@@ -104,7 +124,6 @@ export default function DashboardPage(): JSX.Element {
     prevChange.current = status.lastChange;
   }, [status, refreshAll]);
 
-  // 3. Detectar leads nuevos → toast + resaltado temporal.
   useEffect(() => {
     if (!leads) return;
     const ids = new Set(leads.items.map((l) => l.id));
@@ -133,136 +152,195 @@ export default function DashboardPage(): JSX.Element {
   }
 
   const queueItems = useMemo(() => (queue?.items ?? []).slice(0, 5), [queue]);
+  const m = summary?.metrics;
 
   return (
-    <div className={noMotion ? "no-motion" : ""}>
-      <Header
-        siteName={summary?.site.name ?? "Panel"}
-        period={period}
-        onPeriod={(p) => { setPeriod(p); }}
-        presentation={presentation}
-        onPresentation={setPresentation}
-        hasDemoData={summary?.hasDemoData ?? false}
-      />
+    <Shell
+      siteName={summary?.site.name ?? "Panel"}
+      hasDemoData={summary?.hasDemoData ?? false}
+      period={period}
+      onPeriod={setPeriod}
+      presentation={presentation}
+      onPresentation={setPresentation}
+    >
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-4 pb-16 pt-5">
+        {summary?.stock.isStale && (
+          <motion.div
+            role="alert"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card flex flex-col gap-2 border-(--warm) p-3.5 sm:flex-row sm:items-center"
+          >
+            <p className="flex items-center gap-2 text-sm font-semibold text-(--warm)">
+              <AlertTriangle size={16} aria-hidden="true" />
+              El stock lleva {Math.floor(summary.stock.daysSinceUpdate ?? 0)} días sin actualizarse.
+              El bot ya avisa a los clientes que la disponibilidad puede haber cambiado.
+            </p>
+            <a href="/dashboard/stock" className="btn btn-ghost btn-sm sm:ml-auto">
+              Actualizar stock
+            </a>
+          </motion.div>
+        )}
 
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-5">
-        {/* FRANJA DE VALOR */}
+        {/* KPIS */}
         <section aria-label="Métricas principales">
           {summaryError ? (
             <ErrorBox message="Revisá tu conexión." onRetry={() => mutateSummary()} />
-          ) : !summary ? (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Cargando métricas">
-              {[0, 1, 2, 3, 4].map((i) => <MetricSkeleton key={i} />)}
+          ) : !summary || !m ? (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Cargando métricas">
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <MetricSkeleton key={i} />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <MetricCard
-                label="Consultas atendidas"
-                value={String(summary.metrics.atendidas.value)}
-                variation={summary.metrics.atendidas.variation}
-                how="Leads con al menos una respuesta del bot en el período."
-                spark={summary.daily}
-                big={presentation}
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <KpiCard
+                icon={<Zap size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+                label="Hoy" value={m.hoy.value} format={(n) => String(Math.round(n))}
+                sub="consultas" how="Leads que escribieron hoy (hora de Córdoba)." delay={0}
               />
-              <MetricCard
-                label="Primera respuesta"
-                value={formatDurationShort(summary.metrics.primeraRespuestaSeg.value)}
+              <KpiCard
+                icon={<MessageSquareText size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+                label="Atendidas" value={m.atendidas.value} format={(n) => String(Math.round(n))}
+                variation={m.atendidas.variation} spark={summary.daily}
+                how="Leads con al menos una respuesta del bot en el período." delay={0.03}
+              />
+              <KpiCard
+                icon={<Timer size={16} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
+                label="1ra respuesta" value={m.primeraRespuestaSeg.value ?? 0}
+                format={(n) => (m.primeraRespuestaSeg.value === null ? "—" : formatDurationShort(n))}
                 sub={summary.site.humanReplyReference}
-                how="Mediana entre el primer mensaje del cliente y la primera respuesta del bot, por lead."
-                big={presentation}
+                how="Mediana entre el primer mensaje del cliente y la primera respuesta del bot." delay={0.06}
               />
-              <MetricCard
-                label="Fuera de horario"
-                value={String(summary.metrics.fueraHorario.value)}
-                sub="Antes se perdían o esperaban a la mañana"
-                variation={summary.metrics.fueraHorario.variation}
-                how="Atendidas que llegaron fuera del horario comercial (lun-vie 9-18, sáb 9-13)."
-                big={presentation}
+              <KpiCard
+                icon={<MoonStar size={16} className="text-indigo-700 dark:text-indigo-300" />} tint="var(--cold-soft)"
+                label="Fuera de hora" value={m.fueraHorario.value} format={(n) => String(Math.round(n))}
+                variation={m.fueraHorario.variation} sub="antes se perdían"
+                how="Atendidas fuera del horario comercial (lun-vie 9-18, sáb 9-13)." delay={0.09}
               />
-              <MetricCard
-                label="Leads calientes"
-                value={String(summary.metrics.calientes.value)}
-                variation={summary.metrics.calientes.variation}
-                how="Modelo concreto + presupuesto o pago definido + compra en menos de 30 días, o pidió visita, prueba o reserva."
-                big={presentation}
+              <KpiCard
+                icon={<Flame size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
+                label="Calientes" value={m.calientes.value} format={(n) => String(Math.round(n))}
+                variation={m.calientes.variation}
+                how="Modelo + pago + compra <30 días, o pidió visita, prueba o reserva." delay={0.12}
               />
-              <MetricCard
-                label="Tasa de calificación"
-                value={`${Math.round(summary.metrics.tasaCalificacion.value)}%`}
-                how="% de leads del período con nombre, modelo y presupuesto cargados."
-                big={presentation}
+              <KpiCard
+                icon={<Gauge size={16} className="text-(--warm)" />} tint="var(--warm-soft)"
+                label="Calificación" value={m.tasaCalificacion.value} format={(n) => `${Math.round(n)}%`}
+                how="% de leads con nombre, modelo y presupuesto." delay={0.15}
+              />
+              <KpiCard
+                icon={<MessageCircle size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+                label="Mensajes" value={m.mensajes.value} format={(n) => String(Math.round(n))}
+                sub="bot + clientes" how="Mensajes totales intercambiados en el período." delay={0.18}
+              />
+              <KpiCard
+                icon={<PhoneForwarded size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
+                label="Derivados" value={m.derivados.value} format={(n) => String(Math.round(n))}
+                variation={m.derivados.variation} sub="al asesor"
+                how="Leads que pidieron humano o mostraron intención de cierre." delay={0.21}
               />
             </div>
           )}
         </section>
 
-        {/* COLA DE ACCIÓN */}
+        {/* COLA */}
         <section aria-label="Para atender ahora">
-          <SectionTitle title="Para atender ahora" hint="Pidieron un asesor o están calientes. Los que más esperan, primero." />
+          <SectionHead
+            icon={<Flame size={17} className="text-(--hot)" />} tint="var(--hot-soft)"
+            title="Para atender ahora" hint="Pidieron un asesor o están calientes. Los que más esperan, primero."
+          />
           {!queue ? (
             <div className="card p-4" aria-hidden="true"><div className="skeleton h-12" /></div>
           ) : queueItems.length === 0 ? (
             <div className="card p-6 text-center">
-              <p className="font-semibold">No hay nadie esperando 🎉</p>
+              <p className="font-semibold">No hay nadie esperando</p>
               <p className="mt-1 text-sm text-(--ink-2)">Cuando un lead pida un asesor, aparece acá.</p>
             </div>
           ) : (
             <ul className="flex flex-col gap-2">
-              {queueItems.map((l: LeadRow) => (
-                <li key={l.id} className={`card flex flex-col gap-2 p-3.5 sm:flex-row sm:items-center ${newIds.has(l.id) ? "row-new" : ""}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="flex flex-wrap items-center gap-2 font-bold">
-                      {l.nombre ?? "Sin nombre"}
-                      {l.requiere_humano && (
-                        <span className="badge badge-hot"><Flame size={12} aria-hidden="true" /> Asesor</span>
-                      )}
-                    </p>
-                    <p className="truncate text-sm text-(--ink-2)">
-                      {[l.auto_interes, l.presupuesto].filter(Boolean).join(" · ") || "Sin datos todavía"}
-                    </p>
-                    <p className="tnum text-xs text-(--ink-3)">
-                      esperando {timeAgo(l.last_customer_message_at ?? l.created_at)}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="btn btn-primary btn-sm flex-1 sm:flex-none" onClick={() => setOpenLeadId(l.id)}>
-                      Abrir
-                    </button>
-                    <a
-                      className="btn btn-ghost btn-sm flex-1 sm:flex-none"
-                      href={`https://wa.me/${l.telefono.replace(/\D/g, "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`Abrir WhatsApp de ${l.nombre ?? l.telefono}`}
-                    >
-                      <MessageCircle size={14} aria-hidden="true" /> WhatsApp
-                    </a>
-                    <button className="btn btn-ghost btn-sm flex-1 sm:flex-none" onClick={() => markAttended(l.id)}>
-                      <UserCheck size={14} aria-hidden="true" /> Atendido
-                    </button>
-                  </div>
-                </li>
-              ))}
+              <AnimatePresence initial={false}>
+                {queueItems.map((l: LeadRow) => (
+                  <motion.li
+                    key={l.id}
+                    layout
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 12 }}
+                    transition={{ duration: 0.2 }}
+                    className={`card flex flex-col gap-2 p-3.5 sm:flex-row sm:items-center ${newIds.has(l.id) ? "row-new" : ""}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="flex flex-wrap items-center gap-2 font-bold">
+                        {l.nombre ?? "Sin nombre"}
+                        {l.requiere_humano && (
+                          <span className="badge badge-hot"><Flame size={12} aria-hidden="true" /> Asesor</span>
+                        )}
+                      </p>
+                      <p className="truncate text-sm text-(--ink-2)">
+                        {[l.auto_interes, l.presupuesto].filter(Boolean).join(" · ") || "Sin datos todavía"}
+                      </p>
+                      <p className="tnum text-xs text-(--ink-3)">
+                        esperando {timeAgo(l.last_customer_message_at ?? l.created_at)}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="btn btn-primary btn-sm flex-1 sm:flex-none" onClick={() => setOpenLeadId(l.id)}>
+                        Abrir
+                      </button>
+                      <a
+                        className="btn btn-ghost btn-sm flex-1 sm:flex-none"
+                        href={`https://wa.me/${l.telefono.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Abrir WhatsApp de ${l.nombre ?? l.telefono}`}
+                      >
+                        <MessageCircle size={14} aria-hidden="true" /> WhatsApp
+                      </a>
+                      <button className="btn btn-ghost btn-sm flex-1 sm:flex-none" onClick={() => markAttended(l.id)}>
+                        <UserCheck size={14} aria-hidden="true" /> Atendido
+                      </button>
+                    </div>
+                  </motion.li>
+                ))}
+              </AnimatePresence>
             </ul>
           )}
         </section>
 
-        {/* EMBUDO */}
+        {/* EMBUDO + ACTIVIDAD */}
         {summary && (
-          <section aria-label="Embudo">
-            <SectionTitle title="Embudo" hint="De la consulta a la derivación." />
-            <Funnel steps={summary.funnel} />
+          <section aria-label="Embudo y actividad" className="grid gap-6 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <SectionHead
+                icon={<BarChart3 size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+                title="Embudo" hint="De la consulta a la derivación."
+                action={<a href="/dashboard/embudo" className="btn btn-ghost btn-sm">Ver tablero</a>}
+              />
+              <Funnel steps={summary.funnel} />
+            </div>
+            <div className="lg:col-span-2">
+              <SectionHead
+                icon={<Sparkles size={17} className="text-(--warm)" />} tint="var(--warm-soft)"
+                title="Actividad en vivo" hint="Lo último que pasó, al instante."
+              />
+              <ActivityFeed items={activity?.items ?? []} onOpen={setOpenLeadId} />
+            </div>
           </section>
         )}
 
         {/* ANÁLISIS */}
         <section aria-label="Análisis" className="grid gap-6 lg:grid-cols-2">
           <div>
-            <SectionTitle title="Cuándo escriben" hint="Estos horarios hoy nadie atiende." />
+            <SectionHead
+              icon={<CalendarClock size={17} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
+              title="Cuándo escriben" hint="Estos horarios hoy nadie atiende."
+            />
             {summary ? <Heatmap cells={summary.heatmap} /> : <div className="card p-4"><div className="skeleton h-40" /></div>}
           </div>
           <div>
-            <SectionTitle title="Demanda vs stock" hint="Qué piden contra lo que hay para entregar." />
+            <SectionHead
+              icon={<Table2 size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+              title="Demanda vs stock" hint="Qué piden contra lo que hay para entregar."
+            />
             {summary ? <ModelsVsStock rows={summary.modelsVsStock} /> : <div className="card p-4"><div className="skeleton h-40" /></div>}
           </div>
         </section>
@@ -272,7 +350,10 @@ export default function DashboardPage(): JSX.Element {
 
         {/* TABLA */}
         <section aria-label="Leads">
-          <SectionTitle title="Leads" hint="Clic en un lead para ver la conversación." />
+          <SectionHead
+            icon={<Table2 size={17} className="text-(--ink-2)" />} tint="var(--surface-3)"
+            title="Leads" hint="Clic en un lead para ver la conversación."
+          />
           {leadsError ? (
             <ErrorBox message="Revisá tu conexión." onRetry={() => mutateLeads()} />
           ) : !leads ? (
@@ -305,27 +386,36 @@ export default function DashboardPage(): JSX.Element {
         onToast={pushToast}
       />
 
-      {/* Toasts */}
-      <div className="fixed bottom-4 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 flex-col gap-2 px-4" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className="toast" role="status">
-            <span className="flex-1">{t.msg}</span>
-            {t.leadId && (
-              <button
-                className="shrink-0 font-bold underline underline-offset-2"
-                onClick={() => { setOpenLeadId(t.leadId!); setToasts((x) => x.filter((y) => y.id !== t.id)); }}
-              >
-                Ver conversación
-              </button>
-            )}
-          </div>
-        ))}
+      <div className="fixed bottom-20 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 flex-col gap-2 px-4 lg:bottom-4" aria-live="polite">
+        <AnimatePresence>
+          {toasts.map((t) => (
+            <motion.div
+              key={t.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.18 }}
+              className="toast"
+              role="status"
+            >
+              <span className="flex-1">{t.msg}</span>
+              {t.leadId && (
+                <button
+                  className="shrink-0 font-bold underline underline-offset-2"
+                  onClick={() => { setOpenLeadId(t.leadId!); setToasts((x) => x.filter((y) => y.id !== t.id)); }}
+                >
+                  Ver conversación
+                </button>
+              )}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
 
       <footer className="mx-auto w-full max-w-6xl px-4 pb-8 text-xs text-(--ink-3)">
         Teléfonos: {presentation ? maskPhoneFull("5493515550101") : formatPhone("5493515550101")} como ejemplo ·
         Zona horaria America/Argentina/Cordoba
       </footer>
-    </div>
+    </Shell>
   );
 }

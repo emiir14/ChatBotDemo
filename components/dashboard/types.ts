@@ -13,11 +13,14 @@ export interface SummaryResponse {
   site: { name: string; humanReplyReference: string };
   hasDemoData: boolean;
   metrics: {
+    hoy: { value: number };
     atendidas: { value: number; variation: Variation | null };
     primeraRespuestaSeg: { value: number | null; variation: null };
     fueraHorario: { value: number; variation: Variation | null };
     calientes: { value: number; variation: Variation | null };
     tasaCalificacion: { value: number; variation: null };
+    mensajes: { value: number };
+    derivados: { value: number; variation: Variation | null };
   };
   funnel: Array<{
     key: string;
@@ -30,6 +33,12 @@ export interface SummaryResponse {
   modelsVsStock: Array<{ modelo: string; consultas: number; stock: number }>;
   insights: Array<{ text: string }>;
   actionCount: number;
+  stock: {
+    updatedAt: string | null;
+    staleDays: number;
+    daysSinceUpdate: number | null;
+    isStale: boolean;
+  };
 }
 
 export interface LeadRow {

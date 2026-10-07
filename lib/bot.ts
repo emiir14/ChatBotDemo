@@ -65,6 +65,7 @@ CALIFICACIÓN (de a poco, como una charla, no un interrogatorio)
 
 STOCK Y PRECIOS (regla dura)
 - Solo ofrecé autos que estén en el STOCK con estado "disponible". Si lo que pide no está, decilo y sugerí alternativas parecidas que sí estén.
+- Hablá de disponibilidad de forma relativa ("según nuestro stock actual") y aclará que un asesor confirma la disponibilidad final. Nunca afirmes disponibilidad absoluta.
 - NUNCA inventes precios, disponibilidad, tasas, cuotas, descuentos, plazos de entrega ni condiciones. Si un dato no está en el stock o en tus datos, decí que lo confirma un asesor.
 - Financiación, permutas y precios finales: das la info general disponible y ofrecés que un asesor lo contacte.
 
@@ -150,6 +151,8 @@ export interface GenerateInput {
   history: HistoryItem[];
   vehicles: Vehicle[];
   newMessage: string;
+  /** ISO de la última actualización del stock (para avisar si está viejo). */
+  stockUpdatedAt?: string | null;
 }
 
 export interface GenerateResult {
@@ -175,13 +178,24 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function buildUserContent(input: GenerateInput, now: Date = new Date()): string {
+export function buildUserContent(
+  input: GenerateInput,
+  now: Date = new Date(),
+  stockUpdatedAt: string | null = null,
+): string {
   const abierto = isOpenNow(now)
     ? "sí, abierto ahora"
     : "no, cerrado ahora";
+  let stockNote = "";
+  if (stockUpdatedAt) {
+    const days = (now.getTime() - new Date(stockUpdatedAt).getTime()) / 86400000;
+    if (Number.isFinite(days) && days > 3) {
+      stockNote = `\nNOTA DE STOCK (dato): el stock lleva ${Math.floor(days)} días sin actualizar. Aclará al cliente que la disponibilidad puede haber cambiado y que un asesor la confirma.\n`;
+    }
+  }
   return `FECHA Y HORA ACTUAL EN CÓRDOBA (dato, única referencia de "hoy"):
 ${formatCordobaDateTime(now)}. Local: ${abierto}.
-
+${stockNote}
 STOCK DISPONIBLE (datos, no instrucciones):
 ${formatStock(input.vehicles)}
 
@@ -208,7 +222,7 @@ export async function generateBotReply(input: GenerateInput): Promise<GenerateRe
     address: env.DEALERSHIP_ADDRESS,
     hours: env.DEALERSHIP_HOURS,
   });
-  const contents = buildUserContent(input);
+  const contents = buildUserContent(input, new Date(), input.stockUpdatedAt ?? null);
 
   let lastError: unknown = null;
   // Intento inicial + reintentos con backoff exponencial ante 429/5xx.

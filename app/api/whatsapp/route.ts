@@ -231,6 +231,11 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     .eq("estado", "disponible")
     .order("marca")
     .order("modelo");
+  const { data: stockSettings } = await supabase
+    .from("stock_settings")
+    .select("updated_at")
+    .eq("id", 1)
+    .maybeSingle();
   const { data: history } = await supabase
     .from("messages")
     .select("rol, texto")
@@ -250,6 +255,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
       history: historyAsc,
       vehicles: (stock ?? []) as Vehicle[],
       newMessage: msg.body,
+      stockUpdatedAt: (stockSettings as { updated_at?: string } | null)?.updated_at ?? null,
     });
     reply = result.reply;
     if (result.leadUpdate) {

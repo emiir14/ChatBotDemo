@@ -31,6 +31,10 @@ const envSchema = z.object({
   DASHBOARD_PASSWORD: z.string().min(1).optional(),
   SESSION_SECRET: z.string().min(1).optional(),
 
+  // Demo: el comando "reiniciar demo" del webhook SOLO funciona con "true".
+  // En producción debe ser "false" para que nadie pueda borrar leads.
+  DEMO_MODE: z.enum(["true", "false"]).default("false"),
+
   // Concesionaria (no son secretos; tienen defaults para la demo)
   DEALERSHIP_NAME: z.string().min(1).default("AutoCórdoba"),
   DEALERSHIP_ADDRESS: z
@@ -74,4 +78,9 @@ export function getEnv(): Env {
 /** Solo para tests: limpia la caché de getEnv(). */
 export function __resetEnvCache(): void {
   cached = null;
+}
+
+/** ¿Está activo el modo demo? (habilita "reiniciar demo" y envíos simulados). */
+export function isDemoMode(env: { DEMO_MODE: string }): boolean {
+  return env.DEMO_MODE === "true";
 }

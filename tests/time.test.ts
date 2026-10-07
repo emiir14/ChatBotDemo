@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatCordobaDateTime,
+  isOpenNow,
   isOutsideBusinessHours,
   isWithin24hWindow,
   WHATSAPP_FREE_WINDOW_MS,
@@ -61,5 +63,23 @@ describe("isOutsideBusinessHours (America/Argentina/Cordoba)", () => {
   it("domingo a cualquier hora = fuera de horario", () => {
     // Domingo 2026-10-04 11:00 ART
     expect(isOutsideBusinessHours("2026-10-04T11:00:00-03:00")).toBe(true);
+  });
+
+  it("de noche el día es el de Córdoba aunque en UTC sea otro (borde medianoche)", () => {
+    // Miércoles 2026-10-07 02:30 UTC = martes 6, 23:30 en Córdoba (cerrado).
+    expect(isOutsideBusinessHours("2026-10-07T02:30:00Z")).toBe(true);
+    expect(isOpenNow("2026-10-07T02:30:00Z")).toBe(false);
+    // Miércoles 12:00 UTC = miércoles 09:00 en Córdoba (abierto).
+    expect(isOutsideBusinessHours("2026-10-07T12:00:00Z")).toBe(false);
+    expect(isOpenNow("2026-10-07T12:00:00Z")).toBe(true);
+  });
+});
+
+describe("formatCordobaDateTime", () => {
+  it("dice martes aunque en UTC ya sea miércoles", () => {
+    const text = formatCordobaDateTime(new Date("2026-10-07T02:30:00Z"));
+    expect(text).toContain("martes");
+    expect(text).toContain("23:30");
+    expect(text).toContain("Córdoba");
   });
 });

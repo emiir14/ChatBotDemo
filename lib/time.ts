@@ -79,3 +79,35 @@ export function isOutsideBusinessHours(
   const [open, close] = hours.weekday;
   return hour < open || hour >= close;
 }
+
+/** ¿El local está abierto en este momento? (inverso de isOutsideBusinessHours). */
+export function isOpenNow(
+  date: string | Date = new Date(),
+  hours: BusinessHours = DEFAULT_BUSINESS_HOURS,
+): boolean {
+  return !isOutsideBusinessHours(date, hours);
+}
+
+/**
+ * Fecha y hora actual formateadas en español para inyectar al bot como DATO,
+ * siempre en America/Argentina/Cordoba (el servidor corre en UTC y de noche
+ * el día UTC puede diferir del día en Córdoba).
+ * Ej: "martes 6 de octubre de 2026, 23:30 (hora de Córdoba)".
+ */
+export function formatCordobaDateTime(date: string | Date = new Date()): string {
+  const d = new Date(date);
+  const fecha = new Intl.DateTimeFormat("es-AR", {
+    timeZone: BUSINESS_TIME_ZONE,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(d);
+  const hora = new Intl.DateTimeFormat("es-AR", {
+    timeZone: BUSINESS_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+  return `${fecha}, ${hora} (hora de Córdoba)`;
+}

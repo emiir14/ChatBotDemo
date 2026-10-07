@@ -55,4 +55,11 @@ describe("getEnv", () => {
     setEnv({ ...BASE_ENV, GEMINI_MODEL: "gemini-3.5-flash-lite" });
     expect(getEnv().GEMINI_MODEL).toBe("gemini-3.5-flash-lite");
   });
+
+  it("DEMO_MODE es 'false' por defecto (seguro en producción)", () => {
+    const env = { ...BASE_ENV };
+    delete (env as Record<string, unknown>).DEMO_MODE;
+    setEnv(env as Record<string, string | undefined>);
+    expect(getEnv().DEMO_MODE).toBe("false");
+  });
 });

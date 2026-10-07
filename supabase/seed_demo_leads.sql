@@ -61,7 +61,7 @@ values
   ('a3333333-3333-3333-3333-333333333333', 'cliente', 'Para laburar, pero recién en 2 meses. Después me comunico', 'demo-wamid-0103-c2', now() - interval '20 hours'),
   -- 4. Sofía Gómez (caliente, Cronos)
   ('a4444444-4444-4444-4444-444444444444', 'cliente', 'Hola! Precio del Cronos automático?', 'demo-wamid-0104-c1', now() - interval '1 day'),
-  ('a4444444-4444-4444-4444-444444444444', 'bot', 'Hola Sofía! El Cronos Drive 1.3 CVT 0km está en $28.500.000. ¿Lo necesitás con financiación?', 'demo-wamid-0104-b1', now() - interval '1 day' + interval '1 minute'),
+  ('a4444444-4444-4444-4444-444444444444', 'bot', 'Hola Sofía! El Cronos Drive 1.3 CVT 0km está en $27.800.000. ¿Lo necesitás con financiación?', 'demo-wamid-0104-b1', now() - interval '1 day' + interval '1 minute'),
   ('a4444444-4444-4444-4444-444444444444', 'cliente', 'Sí, financio. Lo quiero reservar esta semana, me llama un asesor?', 'demo-wamid-0104-c2', now() - interval '22 hours'),
   ('a4444444-4444-4444-4444-444444444444', 'bot', 'Dale, ya le aviso a un asesor para que te llame y coordinen la reserva. Gracias por escribirnos!', 'demo-wamid-0104-b2', now() - interval '22 hours' + interval '1 minute'),
   -- 5. Frío: consulta general

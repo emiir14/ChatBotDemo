@@ -1,26 +1,296 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+ * BRIEF DE DISEÑO (15 líneas)
+ * 1. Concepto: tablero de concesionaria sobrio y confiable, no "plantilla IA".
+ * 2. Paleta: neutros cálidos + UN acento verde (venta/confianza) + semánticos.
+ * 3. Temperaturas: caliente terracota, tibio ámbar, frío pizarra (color+ícono+texto).
+ * 4. Tipografía: Inter (next/font); cifras siempre con tabular-nums.
+ * 5. Espaciado en múltiplos de 4; radios 8 (controles) / 12-14 (tarjetas).
+ * 6. Sombras mínimas: borde de 1px + sombra suave solo en tarjetas héroe.
+ * 7. Jerarquía: acción (cola) arriba, análisis al medio, detalle abajo.
+ * 8. Claro por defecto; oscuro con los mismos tokens invertidos.
+ * 9. Mobile-first: grilla 2 col, tabla→tarjetas, drawer full-screen.
+ * 10. Microinteracciones 150-200ms; respeta prefers-reduced-motion.
+ * 11. Estados completos: skeleton con forma real, vacío útil, error+reintentar.
+ * 12. Formato es-AR en precios, fechas relativas y teléfonos.
+ * 13. Accesibilidad: foco visible, ARIA, drawer con Escape, toasts aria-live.
+ * 14. Sin degradés violeta, sin 3D, sin tortas, sin sombras exageradas.
+ * 15. Tokens: todo color/espaciado/radio sale de estas variables.
+ * ========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --surface: #faf9f7;
+  --surface-2: #ffffff;
+  --surface-3: #f1efeB;
+  --ink: #1c1917;
+  --ink-2: #57534e;
+  --ink-3: #a8a29e;
+  --line: #e7e2da;
+  --accent: #0e7a4f;
+  --accent-strong: #0a5c3c;
+  --accent-soft: #e3f2ea;
+  --accent-ink: #ffffff;
+  --hot: #c2410c;
+  --hot-soft: #fdeee3;
+  --warm: #b45309;
+  --warm-soft: #fdf3e0;
+  --cold: #475569;
+  --cold-soft: #eef2f6;
+  --ok: #0e7a4f;
+  --danger: #b91c1c;
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 14px;
+  --shadow-card: 0 1px 2px rgb(28 25 23 / 0.05), 0 4px 16px -8px rgb(28 25 23 / 0.12);
+  --bubble-bot: #ffffff;
+  --bubble-me: #dcf2e5;
+}
+
+.dark {
+  --surface: #131110;
+  --surface-2: #1c1917;
+  --surface-3: #292524;
+  --ink: #f5f4f2;
+  --ink-2: #c9c3bb;
+  --ink-3: #78716c;
+  --line: #33302c;
+  --accent: #34b37a;
+  --accent-strong: #5cc793;
+  --accent-soft: #14342a;
+  --accent-ink: #0b1512;
+  --hot: #f0883e;
+  --hot-soft: #3a2113;
+  --warm: #e3a008;
+  --warm-soft: #38300f;
+  --cold: #8fa3b8;
+  --cold-soft: #232c36;
+  --ok: #34b37a;
+  --danger: #f87171;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+  --bubble-bot: #292524;
+  --bubble-me: #14342a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---------- Controles base ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-s);
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms, transform 150ms;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-strong); }
+.btn-ghost { background: transparent; color: var(--ink-2); border-color: var(--line); }
+.btn-ghost:hover:not(:disabled) { border-color: var(--ink-3); color: var(--ink); }
+.btn-sm { min-height: 36px; padding: 0.3rem 0.7rem; font-size: 0.83rem; }
+
+.input, .select, .textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+.textarea { min-height: 110px; resize: vertical; }
+.input::placeholder, .textarea::placeholder { color: var(--ink-3); }
+
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-card);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge-hot { background: var(--hot-soft); color: var(--hot); }
+.badge-warm { background: var(--warm-soft); color: var(--warm); }
+.badge-cold { background: var(--cold-soft); color: var(--cold); }
+.badge-neutral { background: var(--surface-3); color: var(--ink-2); }
+.badge-accent { background: var(--accent-soft); color: var(--accent-strong); }
+.dark .badge-accent { color: var(--accent); }
+
+/* ---------- Skeleton / estados ---------- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-3);
+  border-radius: 6px;
+  min-height: 1rem;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(128 128 128 / 0.12), transparent);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* ---------- Animación de fila nueva ---------- */
+@keyframes row-in {
+  from { background: var(--accent-soft); transform: translateY(-4px); opacity: 0; }
+  to { background: transparent; transform: translateY(0); opacity: 1; }
+}
+.row-new { animation: row-in 600ms ease-out; }
+.no-motion .row-new { animation: none; }
+
+/* ---------- Burbujas WhatsApp ---------- */
+.bubble {
+  max-width: 82%;
+  padding: 0.5rem 0.7rem 1.05rem;
+  border-radius: 10px;
+  position: relative;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.08);
+}
+.bubble-bot { background: var(--bubble-bot); border: 1px solid var(--line); align-self: flex-start; border-top-left-radius: 2px; }
+.bubble-me { background: var(--bubble-me); align-self: flex-end; border-top-right-radius: 2px; }
+.bubble time {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.25rem;
+  font-size: 0.68rem;
+  color: var(--ink-3);
+}
+
+/* ---------- Login ---------- */
+.login-wrap {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-card);
+  padding: 2rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.login-card h1 { font-size: 1.25rem; font-weight: 700; }
+.login-card p { color: var(--ink-2); font-size: 0.9rem; }
+.login-card label { font-size: 0.83rem; font-weight: 600; margin-top: 0.5rem; }
+.login-card input {
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.login-card button {
+  margin-top: 0.75rem;
+  min-height: 44px;
+  border-radius: var(--radius-s);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+.login-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.login-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dark .login-logo { color: var(--accent); }
+
+/* ---------- Heatmap ---------- */
+.heat-cell {
+  aspect-ratio: 1;
+  min-width: 14px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+
+/* ---------- Toast ---------- */
+.toast {
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.4);
+  animation: toast-in 200ms ease-out;
+}
+@keyframes toast-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }

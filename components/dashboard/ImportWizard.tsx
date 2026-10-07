@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type JSX } from "react";
-import { Upload } from "lucide-react";
+import { useRef, useState, type JSX } from "react";
+import { FileSpreadsheet, Upload, X } from "lucide-react";
 import { TEMPLATE_COLUMNS } from "@/lib/stock-import";
 
 interface PreviewData {
@@ -16,6 +16,8 @@ interface PreviewData {
 /** Asistente de importación: plantilla → archivo → vista previa → aplicar. */
 export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Element {
   const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"update" | "replace">("update");
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [markSold, setMarkSold] = useState<string[]>([]);
@@ -82,7 +84,7 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
     <section aria-label="Carga por Excel o CSV" className="card p-4">
       <h2 className="text-base font-bold">Carga por Excel / CSV</h2>
       <p className="mt-0.5 text-sm text-(--ink-2)">
-        Descargá la plantilla, completala y subila. Vas a ver una vista previa antes de aplicar.
+        Subí un archivo <strong>.csv o .xlsx</strong> con el formato esperado. Vas a ver una vista previa antes de aplicar.
       </p>
 
       <div className="mt-3 flex flex-col gap-2.5">
@@ -109,14 +111,75 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
           </label>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Subir archivo de stock (.csv o .xlsx, máximo 2 MB)"
+          onClick={() => inputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f) {
+              setFile(f);
+              setPreview(null);
+              setError(null);
+            }
+          }}
+          className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl border-2 border-dashed px-4 py-7 text-center transition-colors ${
+            dragging ? "border-(--accent) bg-(--accent-soft)" : "border-(--line) bg-(--surface)"
+          }`}
+        >
+          <FileSpreadsheet size={28} className="text-(--ink-2)" aria-hidden="true" />
+          <p className="text-sm font-bold">
+            {dragging ? "Soltá el archivo acá" : "Arrastrá tu archivo acá o tocá para buscarlo"}
+          </p>
+          <p className="text-xs text-(--ink-2)">.csv o .xlsx · máximo 2 MB</p>
+          <span className="btn btn-ghost btn-sm mt-1">Elegir archivo</span>
           <input
+            ref={inputRef}
             type="file"
             accept=".csv,.xlsx,.xls"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            aria-label="Archivo de stock"
-            className="input"
+            className="hidden"
+            tabIndex={-1}
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setPreview(null);
+              setError(null);
+            }}
           />
+        </div>
+
+        {file && (
+          <div className="flex items-center gap-2 rounded-xl bg-(--surface-3) px-3 py-2 text-sm">
+            <FileSpreadsheet size={16} aria-hidden="true" className="shrink-0 text-(--ink-2)" />
+            <span className="min-w-0 flex-1 truncate font-semibold">{file.name}</span>
+            <span className="tnum shrink-0 text-xs text-(--ink-2)">
+              {(file.size / 1024).toFixed(0)} KB
+            </span>
+            <button
+              className="btn btn-ghost btn-sm shrink-0"
+              onClick={() => {
+                setFile(null);
+                setPreview(null);
+                if (inputRef.current) inputRef.current.value = "";
+              }}
+              aria-label={`Quitar ${file.name}`}
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 sm:flex-row">
           <button className="btn btn-primary sm:w-auto" onClick={upload} disabled={!file || loading}>
             <Upload size={15} aria-hidden="true" />
             {loading ? "Procesando…" : "Vista previa"}

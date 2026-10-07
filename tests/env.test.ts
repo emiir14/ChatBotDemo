@@ -62,4 +62,10 @@ describe("getEnv", () => {
     setEnv(env as Record<string, string | undefined>);
     expect(getEnv().DEMO_MODE).toBe("false");
   });
+
+  it("DEMO_MODE=true habilita funciones de demo", async () => {
+    setEnv({ ...BASE_ENV, DEMO_MODE: "true" });
+    const { isDemoMode } = await import("@/lib/env");
+    expect(isDemoMode(getEnv())).toBe(true);
+  });
 });

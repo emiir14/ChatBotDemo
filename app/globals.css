@@ -50,13 +50,13 @@
 }
 
 .dark {
-  --surface: #131110;
-  --surface-2: #1c1917;
-  --surface-3: #292524;
-  --ink: #f5f4f2;
-  --ink-2: #c9c3bb;
-  --ink-3: #78716c;
-  --line: #33302c;
+  --surface: #100e0d;
+  --surface-2: #201b17;
+  --surface-3: #2e2822;
+  --ink: #f7f5f1;
+  --ink-2: #d8d2c6;
+  --ink-3: #a8a196;
+  --line: #3f3830;
   --accent: #34b37a;
   --accent-strong: #5cc793;
   --accent-soft: #14342a;

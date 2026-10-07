@@ -12,6 +12,7 @@ export interface SummaryResponse {
   period: string;
   site: { name: string; humanReplyReference: string };
   hasDemoData: boolean;
+  demoMode: boolean;
   metrics: {
     hoy: { value: number };
     atendidas: { value: number; variation: Variation | null };

@@ -5,11 +5,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import useSWR from "swr";
 import {
+  Activity,
   AlertTriangle,
   BarChart3,
   CalendarClock,
   Flame,
   Gauge,
+  LayoutGrid,
   MessageCircle,
   MessageSquareText,
   MoonStar,
@@ -18,6 +20,7 @@ import {
   Table2,
   Timer,
   UserCheck,
+  Users,
   Zap,
 } from "lucide-react";
 import { Shell, type Period } from "@/components/dashboard/Header";
@@ -61,8 +64,18 @@ function useVisible(): boolean {
   return visible;
 }
 
+type PanelTab = "resumen" | "embudo" | "leads" | "actividad";
+
+const TABS: Array<{ key: PanelTab; label: string; icon: typeof LayoutGrid }> = [
+  { key: "resumen", label: "Resumen", icon: LayoutGrid },
+  { key: "embudo", label: "Embudo de ventas", icon: BarChart3 },
+  { key: "leads", label: "Leads", icon: Users },
+  { key: "actividad", label: "Actividad", icon: Activity },
+];
+
 export default function DashboardPage(): JSX.Element {
   const [period, setPeriod] = useState<Period>("7d");
+  const [tab, setTab] = useState<PanelTab>("resumen");
   const [filters, setFilters] = useState<LeadFilters>({ temperatura: "all", estado: "all", q: "", page: 1 });
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [presentation, setPresentation] = useState(false);
@@ -141,8 +154,23 @@ export default function DashboardPage(): JSX.Element {
     }
   }, [leads, pushToast]);
 
-  async function markAttended(id: string): Promise<void> {
-    await fetch("/api/dashboard/attend", {
+  async function resetPanel(): Promise<void> {
+    const res = await fetch("/api/dashboard/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: true }),
+    });
+    if (!res.ok) {
+      pushToast("No se pudo vaciar");
+      return;
+    }
+    knownIds.current = new Set();
+    setNewIds(new Set());
+    pushToast("Panel vaciado. Escribí al bot para verlo llenarse en vivo.");
+    refreshAll();
+  }
+
+  async function markAttended(id: string): Promise<void> {    await fetch("/api/dashboard/attend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ leadId: id }),
@@ -162,8 +190,40 @@ export default function DashboardPage(): JSX.Element {
       onPeriod={setPeriod}
       presentation={presentation}
       onPresentation={setPresentation}
+      demoMode={summary?.demoMode ?? false}
+      resetCount={status?.leadsTotal ?? 0}
+      onReset={resetPanel}
     >
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-4 pb-16 pt-5">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-5">
+        {/* Pestañas del panel */}
+        <div role="tablist" aria-label="Secciones del panel" className="-mb-2 flex gap-1 overflow-x-auto border-b border-(--line)">
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(t.key)}
+                className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 px-3 text-sm font-bold transition-colors ${
+                  active ? "text-(--ink)" : "text-(--ink-3)"
+                }`}
+              >
+                <Icon size={15} aria-hidden="true" />
+                {t.label}
+                {active && (
+                  <motion.span
+                    layoutId="panel-tab-underline"
+                    className="absolute inset-x-2 -bottom-px h-[2.5px] rounded-full bg-(--accent)"
+                    transition={{ duration: 0.2 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {summary?.stock.isStale && (
           <motion.div
             role="alert"
@@ -182,8 +242,10 @@ export default function DashboardPage(): JSX.Element {
           </motion.div>
         )}
 
-        {/* KPIS */}
-        <section aria-label="Métricas principales">
+      {tab === "resumen" && (
+        <>
+          {/* KPIS */}
+          <section aria-label="Métricas principales">
           {summaryError ? (
             <ErrorBox message="Revisá tu conexión." onRetry={() => mutateSummary()} />
           ) : !summary || !m ? (
@@ -306,27 +368,24 @@ export default function DashboardPage(): JSX.Element {
           )}
         </section>
 
-        {/* EMBUDO + ACTIVIDAD */}
-        {summary && (
-          <section aria-label="Embudo y actividad" className="grid gap-6 lg:grid-cols-5">
-            <div className="lg:col-span-3">
+        {/* INSIGHTS */}
+        {!presentation && summary && summary.insights.length > 0 && <Insights items={summary.insights} />}
+        </>
+      )}
+
+      {tab === "embudo" && (
+        <>
+          {/* EMBUDO */}
+          {summary && (
+            <section aria-label="Embudo de ventas">
               <SectionHead
                 icon={<BarChart3 size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
-                title="Embudo" hint="De la consulta a la derivación."
+                title="Embudo de ventas" hint="De la consulta a la derivación."
                 action={<a href="/dashboard/embudo" className="btn btn-ghost btn-sm">Ver tablero</a>}
               />
               <Funnel steps={summary.funnel} />
-            </div>
-            <div className="lg:col-span-2">
-              <SectionHead
-                icon={<Sparkles size={17} className="text-(--warm)" />} tint="var(--warm-soft)"
-                title="Actividad en vivo" hint="Lo último que pasó, al instante."
-              />
-              <ActivityFeed items={activity?.items ?? []} onOpen={setOpenLeadId} />
-            </div>
-          </section>
-        )}
-
+            </section>
+          )}
         {/* ANÁLISIS */}
         <section aria-label="Análisis" className="grid gap-6 lg:grid-cols-2">
           <div>
@@ -344,12 +403,13 @@ export default function DashboardPage(): JSX.Element {
             {summary ? <ModelsVsStock rows={summary.modelsVsStock} /> : <div className="card p-4"><div className="skeleton h-40" /></div>}
           </div>
         </section>
+        </>
+      )}
 
-        {/* INSIGHTS */}
-        {!presentation && summary && summary.insights.length > 0 && <Insights items={summary.insights} />}
-
-        {/* TABLA */}
-        <section aria-label="Leads">
+      {tab === "leads" && (
+        <>
+          {/* TABLA */}
+          <section aria-label="Leads">
           <SectionHead
             icon={<Table2 size={17} className="text-(--ink-2)" />} tint="var(--surface-3)"
             title="Leads" hint="Clic en un lead para ver la conversación."
@@ -375,7 +435,19 @@ export default function DashboardPage(): JSX.Element {
               presentation={presentation}
             />
           )}
+          </section>
+        </>
+      )}
+
+      {tab === "actividad" && (
+        <section aria-label="Actividad">
+          <SectionHead
+            icon={<Sparkles size={17} className="text-(--warm)" />} tint="var(--warm-soft)"
+            title="Actividad en vivo" hint="Lo último que pasó, al instante."
+          />
+          <ActivityFeed items={activity?.items ?? []} onOpen={setOpenLeadId} />
         </section>
+      )}
       </main>
 
       <LeadDrawer

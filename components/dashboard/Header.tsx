@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Boxes, LayoutDashboard, LogOut, Moon, Play, Pause, Sun } from "lucide-react";
+import { BarChart3, Boxes, LayoutDashboard, LogOut, Moon, Play, Pause, Sun, Trash2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type JSX, type ReactNode } from "react";
 import type { PeriodKey } from "@/lib/metrics";
@@ -48,6 +48,9 @@ export function Shell({
   presentation,
   onPresentation,
   children,
+  demoMode,
+  resetCount,
+  onReset,
 }: {
   siteName: string;
   hasDemoData: boolean;
@@ -56,9 +59,15 @@ export function Shell({
   presentation?: boolean;
   onPresentation?: (v: boolean) => void;
   children: ReactNode;
+  /** Botón "Vaciar panel" (solo demo): se muestra si viene onReset. */
+  demoMode?: boolean;
+  resetCount?: number;
+  onReset?: () => Promise<void>;
 }): JSX.Element {
   const router = useRouter();
   const pathname = usePathname();
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -186,6 +195,44 @@ export function Shell({
                 {presentation ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
                 <span className="hidden sm:inline">Presentación</span>
               </button>
+            )}
+            {demoMode && onReset && (
+              confirmingReset ? (
+                <span className="flex items-center gap-1.5 rounded-lg border border-(--danger) px-2 py-1 text-xs font-bold">
+                  ¿Vaciar {resetCount ?? ""} leads?
+                  <button
+                    className="min-h-[32px] rounded-md bg-(--danger) px-2.5 text-white"
+                    disabled={resetting}
+                    onClick={async () => {
+                      setResetting(true);
+                      try {
+                        await onReset();
+                      } finally {
+                        setResetting(false);
+                        setConfirmingReset(false);
+                      }
+                    }}
+                  >
+                    {resetting ? "…" : "Sí, vaciar"}
+                  </button>
+                  <button
+                    className="min-h-[32px] px-1.5 underline"
+                    onClick={() => setConfirmingReset(false)}
+                  >
+                    No
+                  </button>
+                </span>
+              ) : (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setConfirmingReset(true)}
+                  title="Vacía leads y mensajes (el stock queda). Para la demo en vivo."
+                  aria-label="Vaciar panel"
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                  <span className="hidden sm:inline">Vaciar</span>
+                </button>
+              )
             )}
             <button className="btn btn-ghost btn-sm lg:hidden" onClick={logout} aria-label="Cerrar sesión">
               <LogOut size={15} aria-hidden="true" />

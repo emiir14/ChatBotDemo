@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getEnv, isDemoMode } from "@/lib/env";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getSiteConfig } from "@/lib/site-config";
 import {
@@ -144,6 +145,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     period,
     site: { name: site.name, humanReplyReference: site.humanReplyReferenceLabel },
     hasDemoData: curJson.demo_count > 0,
+    demoMode: isDemoMode(getEnv()),
     metrics: {
       hoy: { value: todayJson.consultas ?? 0 },
       atendidas: { value: curJson.atendidas, variation: variation(curJson.atendidas, prevJson.atendidas) },

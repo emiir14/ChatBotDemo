@@ -79,7 +79,7 @@ export default function EmbudoPage(): JSX.Element {
                     >
                       <button
                         onClick={() => setOpenLeadId(l.id)}
-                        className="card w-full p-3 text-left transition-shadow hover:shadow-md"
+                        className="card lift w-full p-3 text-left"
                       >
                         <span className="flex items-center justify-between gap-2">
                           <span className="truncate font-bold text-[0.9rem]">{l.nombre ?? "Sin nombre"}</span>

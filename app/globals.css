@@ -22,7 +22,7 @@
  * ========================================================================== */
 
 :root {
-  --surface: #faf9f7;
+  --surface: #f1eee7;
   --surface-2: #ffffff;
   --surface-3: #f1efeB;
   --ink: #1c1917;
@@ -100,6 +100,10 @@ body {
   border-radius: 4px;
 }
 
+button, [role="button"], summary {
+  cursor: pointer;
+}
+
 /* ---------- Controles base ---------- */
 .btn {
   display: inline-flex;
@@ -143,6 +147,15 @@ body {
   box-shadow: var(--shadow-card);
 }
 
+/* Elevación sutil al hover (filas, tarjetas clicables) */
+.lift {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgb(28 25 23 / 0.06), 0 10px 28px -12px rgb(28 25 23 / 0.22);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -182,6 +195,15 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after { animation: none; }
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* Oculta la barra manteniendo el scroll táctil (para tab bars) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* ---------- Animación de fila nueva ---------- */
@@ -268,14 +290,6 @@ body {
   justify-content: center;
 }
 .dark .login-logo { color: var(--accent); }
-
-/* ---------- Heatmap ---------- */
-.heat-cell {
-  aspect-ratio: 1;
-  min-width: 14px;
-  border-radius: 3px;
-  background: var(--surface-3);
-}
 
 /* ---------- Toast ---------- */
 .toast {

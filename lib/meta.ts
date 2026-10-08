@@ -125,3 +125,64 @@ export async function markAsRead(messageId: string): Promise<void> {
     // Best effort: no rompe el flujo.
   }
 }
+
+/**
+ * Arma el body de envío por plantilla aprobada (sirve fuera de la ventana
+ * de 24 hs). La hello_world es la plantilla de prueba que trae Meta.
+ */
+export function buildTemplateBody(args: {
+  to: string;
+  name?: string;
+  language?: string;
+}): Record<string, unknown> {
+  return {
+    messaging_product: "whatsapp",
+    to: args.to,
+    type: "template",
+    template: {
+      name: args.name ?? "hello_world",
+      language: { code: args.language ?? "en_US" },
+    },
+  };
+}
+
+/** Envía una plantilla aprobada (p. ej. para el botón "Enviarme WhatsApp"). */
+export async function sendWhatsAppTemplate(args: {
+  to: string;
+  name?: string;
+  language?: string;
+}): Promise<SendResult> {
+  const { base, configured } = apiBase();
+  if (!configured) {
+    return {
+      ok: false,
+      errorMessage: "WhatsApp no configurado (falta TOKEN o PHONE_NUMBER_ID).",
+    };
+  }
+  try {
+    const res = await fetch(`${base}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getEnv().WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildTemplateBody(args)),
+    });
+    const data: unknown = await res.json().catch(() => null);
+    if (!res.ok) {
+      let code: number | undefined;
+      let message = `Meta respondió ${res.status}`;
+      if (isRecord(data) && isRecord(data.error)) {
+        if (typeof data.error.code === "number") code = data.error.code;
+        if (typeof data.error.message === "string") message = data.error.message;
+      }
+      return { ok: false, errorCode: code, errorMessage: message };
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      errorMessage: err instanceof Error ? err.message : "Error de red con Meta.",
+    };
+  }
+}

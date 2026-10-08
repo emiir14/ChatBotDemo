@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment, useMemo, type JSX } from "react";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { useMemo, type JSX } from "react";
+import { Area, AreaChart, Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { Lightbulb } from "lucide-react";
 import { HowCalculated, SectionTitle, VariationLabel } from "./ui";
 import { diaNombre } from "@/lib/metrics";
@@ -87,64 +87,111 @@ export function Funnel({ steps }: { steps: SummaryResponse["funnel"] }): JSX.Ele
   );
 }
 
-/** Mapa de calor día × hora (grilla CSS). Franjas fuera de horario sombreadas. */
+/** Cuándo escriben: barras por hora y por día (sin scroll, legible en móvil).
+ *  Reemplaza al mapa de calor día×hora: misma data agregada, cero scroll.
+ *  Barras ámbar = franjas que suelen caer fuera de horario comercial. */
 export function Heatmap({ cells }: { cells: SummaryResponse["heatmap"] }): JSX.Element {
-  const byCell = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const c of cells) m.set(`${c.dow}-${c.hour}`, Number(c.n));
-    return m;
+  const hourly = useMemo(() => {
+    const totals = Array<number>(24).fill(0);
+    for (const c of cells) totals[c.hour] += Number(c.n);
+    return totals.map((n, h) => ({ h: `${h}h`, n, off: h < 8 || h >= 20 }));
   }, [cells]);
-  const max = useMemo(() => Math.max(1, ...cells.map((c) => Number(c.n))), [cells]);
-  const hours = useMemo(() => Array.from({ length: 24 }, (_, h) => h), []);
-  const days = [1, 2, 3, 4, 5, 6, 7];
+  const daily = useMemo(() => {
+    const totals: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 };
+    for (const c of cells) totals[c.dow] += Number(c.n);
+    return [1, 2, 3, 4, 5, 6, 7].map((d) => ({
+      d: diaNombre(d).slice(0, 3),
+      n: totals[d],
+      off: d === 7,
+    }));
+  }, [cells]);
+  const maxH = Math.max(1, ...hourly.map((x) => x.n));
+  const maxD = Math.max(1, ...daily.map((x) => x.n));
+  const total = hourly.reduce((a, b) => a + b.n, 0);
+  const peakH = hourly.reduce((a, b) => (b.n > a.n ? b : a), hourly[0]);
+  const peakD = daily.reduce((a, b) => (b.n > a.n ? b : a), daily[0]);
 
-  const isOff = (dow: number, h: number): boolean =>
-    dow === 7 || (dow === 6 && (h < 9 || h >= 13)) || (dow <= 5 && (h < 9 || h >= 18));
+  if (total === 0) {
+    return (
+      <div className="card p-5 text-center">
+        <p className="text-sm text-(--ink-2)">Todavía no hay consultas en este período.</p>
+      </div>
+    );
+  }
 
-  const colorFor = (n: number): string => {
-    if (n === 0) return "var(--surface-3)";
-    const t = n / max;
-    // Verde acento con intensidad por volumen (coherente con tokens).
-    return `color-mix(in srgb, var(--accent) ${Math.round(25 + t * 75)}%, var(--surface-3))`;
+  const tooltipStyle = {
+    background: "var(--surface-2)",
+    border: "1px solid var(--line)",
+    borderRadius: 8,
+    fontSize: 12,
   };
 
   return (
-    <div className="card overflow-x-auto p-4">
-      <div className="min-w-[560px]">
-        <div className="grid" style={{ gridTemplateColumns: "52px repeat(24, 1fr)" }} role="img"
-          aria-label="Mapa de calor de consultas por día y hora">
-          <div />
-          {hours.map((h) => (
-            <div key={h} className="pb-1 text-center text-[0.62rem] text-(--ink-3)">
-              {h % 3 === 0 ? `${h}h` : ""}
-            </div>
-          ))}
-          {days.map((d) => (
-            <Fragment key={d}>
-              <div key={`lbl-${d}`} className="py-0.5 pr-2 text-right text-[0.7rem] font-semibold capitalize text-(--ink-2)">
-                {diaNombre(d).slice(0, 3)}
-              </div>
-              {hours.map((h) => {
-                const n = byCell.get(`${d}-${h}`) ?? 0;
-                return (
-                  <div key={`${d}-${h}`} className="p-[1.5px]" title={`${diaNombre(d)} ${h}hs: ${n} consultas${isOff(d, h) ? " (fuera de horario)" : ""}`}>
-                    <div
-                      className="heat-cell"
-                      style={{
-                        background: colorFor(n),
-                        outline: isOff(d, h) ? "1px dashed var(--ink-3)" : undefined,
-                        outlineOffset: -1,
-                      }}
+    <div className="card p-4">
+      <p className="mb-2 text-sm">
+        Pico: <strong className="capitalize">{peakD.d} {peakH.h}</strong> ({Math.max(peakH.n, 1)} consultas).
+        Las barras ámbar caen fuera de horario: hoy nadie las atiende.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div role="img" aria-label={`Consultas por hora. Pico a las ${peakH.h}.`}>
+          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-(--ink-2)">Por hora</p>
+          <div className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={hourly} margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
+                <XAxis dataKey="h" tickLine={false} axisLine={false} interval={3} tick={{ fontSize: 10, fill: "var(--ink-3)" }} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v) => [`${v} consultas`, ""]}
+                  labelFormatter={(l) => `${l} hs`}
+                />
+                <Bar dataKey="n" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                  {hourly.map((x, i) => (
+                    <Cell
+                      key={i}
+                      fill={
+                        x.n === maxH && maxH > 0
+                          ? "var(--accent-strong)"
+                          : x.off
+                            ? "var(--warm)"
+                            : "var(--accent)"
+                      }
+                      fillOpacity={x.n === maxH ? 1 : 0.75}
                     />
-                  </div>
-                );
-              })}
-            </Fragment>
-          ))}
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <p className="mt-2 text-xs text-(--ink-3)">
-          Celdas con borde punteado = fuera de horario comercial. Más intenso = más consultas.
-        </p>
+        <div role="img" aria-label="Consultas por día de semana.">
+          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-(--ink-2)">Por día</p>
+          <div className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={daily} margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
+                <XAxis dataKey="d" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "var(--ink-3)" }} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v) => [`${v} consultas`, ""]}
+                />
+                <Bar dataKey="n" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                  {daily.map((x, i) => (
+                    <Cell
+                      key={i}
+                      fill={
+                        x.n === maxD && maxD > 0
+                          ? "var(--accent-strong)"
+                          : x.off
+                            ? "var(--warm)"
+                            : "var(--accent)"
+                      }
+                      fillOpacity={x.n === maxD ? 1 : 0.75}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
     </div>
   );

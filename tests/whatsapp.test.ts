@@ -8,7 +8,7 @@ import {
   signBody,
   verifyMetaSignature,
 } from "@/lib/whatsapp";
-import { buildReadReceiptBody } from "@/lib/meta";
+import { buildReadReceiptBody, buildTemplateBody } from "@/lib/meta";
 
 const SECRET = "test-app-secret";
 
@@ -166,6 +166,17 @@ describe("buildReadReceiptBody (typing indicator)", () => {
       status: "read",
       message_id: "wamid.123",
       typing_indicator: { type: "text" },
+    });
+  });
+});
+
+describe("buildTemplateBody (plantilla hello_world)", () => {
+  it("arma el body oficial para envío fuera de ventana", () => {
+    expect(buildTemplateBody({ to: "5493515550101" })).toEqual({
+      messaging_product: "whatsapp",
+      to: "5493515550101",
+      type: "template",
+      template: { name: "hello_world", language: { code: "en_US" } },
     });
   });
 });

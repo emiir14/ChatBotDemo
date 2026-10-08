@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Shell, type Period } from "@/components/dashboard/Header";
+import { SelfSend } from "@/components/dashboard/SelfSend";
 import { EmptyBox, ErrorBox, MetricSkeleton, TempBadge } from "@/components/dashboard/ui";
 import { Funnel, Heatmap, Insights, ModelsVsStock } from "@/components/dashboard/panels";
 import { ActivityFeed, KpiCard, SectionHead } from "@/components/dashboard/motion";
@@ -193,10 +194,11 @@ export default function DashboardPage(): JSX.Element {
       demoMode={summary?.demoMode ?? false}
       resetCount={status?.leadsTotal ?? 0}
       onReset={resetPanel}
+      extraActions={summary?.demoMode ? <SelfSend onToast={pushToast} /> : undefined}
     >
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-5">
         {/* Pestañas del panel */}
-        <div role="tablist" aria-label="Secciones del panel" className="-mb-2 flex gap-1 overflow-x-auto border-b border-(--line)">
+        <div role="tablist" aria-label="Secciones del panel" className="no-scrollbar -mb-2 flex gap-1 overflow-x-auto border-b border-(--line)">
           {TABS.map((t) => {
             const active = tab === t.key;
             const Icon = t.icon;
@@ -206,8 +208,8 @@ export default function DashboardPage(): JSX.Element {
                 role="tab"
                 aria-selected={active}
                 onClick={() => setTab(t.key)}
-                className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 px-3 text-sm font-bold transition-colors ${
-                  active ? "text-(--ink)" : "text-(--ink-3)"
+                className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-t-xl px-3 text-sm font-bold transition-colors hover:bg-(--surface-3) ${
+                  active ? "bg-(--surface-2) text-(--ink) shadow-[inset_0_0_0_1px_var(--line)]" : "text-(--ink-3)"
                 }`}
               >
                 <Icon size={15} aria-hidden="true" />
@@ -242,6 +244,15 @@ export default function DashboardPage(): JSX.Element {
           </motion.div>
         )}
 
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.18 }}
+          className="flex flex-col gap-6"
+        >
       {tab === "resumen" && (
         <>
           {/* KPIS */}
@@ -327,6 +338,7 @@ export default function DashboardPage(): JSX.Element {
                     initial={{ opacity: 0, x: -12 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 12 }}
+                    whileHover={{ y: -2 }}
                     transition={{ duration: 0.2 }}
                     className={`card flex flex-col gap-2 p-3.5 sm:flex-row sm:items-center ${newIds.has(l.id) ? "row-new" : ""}`}
                   >
@@ -448,6 +460,8 @@ export default function DashboardPage(): JSX.Element {
           <ActivityFeed items={activity?.items ?? []} onOpen={setOpenLeadId} />
         </section>
       )}
+        </motion.div>
+      </AnimatePresence>
       </main>
 
       <LeadDrawer

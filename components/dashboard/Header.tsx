@@ -51,6 +51,7 @@ export function Shell({
   demoMode,
   resetCount,
   onReset,
+  extraActions,
 }: {
   siteName: string;
   hasDemoData: boolean;
@@ -63,6 +64,8 @@ export function Shell({
   demoMode?: boolean;
   resetCount?: number;
   onReset?: () => Promise<void>;
+  /** Acciones extra de la barra (solo demo). */
+  extraActions?: ReactNode;
 }): JSX.Element {
   const router = useRouter();
   const pathname = usePathname();
@@ -237,6 +240,7 @@ export function Shell({
             <button className="btn btn-ghost btn-sm lg:hidden" onClick={logout} aria-label="Cerrar sesión">
               <LogOut size={15} aria-hidden="true" />
             </button>
+            {extraActions}
           </div>
         </header>
 

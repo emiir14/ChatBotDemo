@@ -171,10 +171,10 @@ describe("buildReadReceiptBody (typing indicator)", () => {
 });
 
 describe("buildTemplateBody (plantilla hello_world)", () => {
-  it("arma el body oficial para envío fuera de ventana", () => {
+  it("arma el body oficial para envío fuera de ventana (con 9 normalizado)", () => {
     expect(buildTemplateBody({ to: "5493515550101" })).toEqual({
       messaging_product: "whatsapp",
-      to: "5493515550101",
+      to: "543515550101",
       type: "template",
       template: { name: "hello_world", language: { code: "en_US" } },
     });

@@ -26,6 +26,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Normaliza el destinatario solo para el envío a Meta.
+ * Los números de prueba comparan el `to` exacto contra su lista permitida,
+ * que registra los móviles argentinos SIN el 9 (549... → 54...).
+ * En la base se sigue guardando el número original con 9.
+ */
+export function normalizeArPhone(phone: string): string {
+  return /^549\d{10}$/.test(phone) ? "54" + phone.slice(3) : phone;
+}
+
+/**
  * Arma el body de "marcar como leído + mostrar escribiendo".
  * Documentación oficial de Meta ("Typing indicators", verificada oct 2026):
  * es el MISMO endpoint de mensajes con status=read más el parámetro
@@ -73,7 +83,7 @@ export async function sendWhatsAppText(args: {
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        to: args.to,
+        to: normalizeArPhone(args.to),
         type: "text",
         text: { body: args.body },
       }),
@@ -137,7 +147,7 @@ export function buildTemplateBody(args: {
 }): Record<string, unknown> {
   return {
     messaging_product: "whatsapp",
-    to: args.to,
+    to: normalizeArPhone(args.to),
     type: "template",
     template: {
       name: args.name ?? "hello_world",

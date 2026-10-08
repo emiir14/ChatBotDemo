@@ -8,7 +8,7 @@ import {
   signBody,
   verifyMetaSignature,
 } from "@/lib/whatsapp";
-import { buildReadReceiptBody, buildTemplateBody } from "@/lib/meta";
+import { buildReadReceiptBody, buildTemplateBody, normalizeArPhone } from "@/lib/meta";
 
 const SECRET = "test-app-secret";
 
@@ -178,6 +178,14 @@ describe("buildTemplateBody (plantilla hello_world)", () => {
       type: "template",
       template: { name: "hello_world", language: { code: "en_US" } },
     });
+  });
+});
+
+describe("normalizeArPhone (lista permitida de Meta)", () => {
+  it("saca el 9 a móviles AR y deja el resto igual", () => {
+    expect(normalizeArPhone("5493517887715")).toBe("543517887715");
+    expect(normalizeArPhone("543517887715")).toBe("543517887715");
+    expect(normalizeArPhone("15556407919")).toBe("15556407919");
   });
 });
 

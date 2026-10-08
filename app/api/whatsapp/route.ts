@@ -11,8 +11,10 @@ import {
 } from "@/lib/whatsapp";
 import { markAsRead, sendWhatsAppText } from "@/lib/meta";
 import {
+  busyReply,
   fallbackReply,
   generateBotReply,
+  isGeminiQuotaError,
   technicalErrorReply,
 } from "@/lib/bot";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -79,7 +81,10 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const incoming = extractIncomingMessages(payload);
-  console.log(`[whatsapp] POST recibido, mensajes extraídos: ${incoming.length}`);
+  // Los POST de estado (entregado/leído) no traen mensajes: no ensucian el log.
+  if (incoming.length > 0) {
+    console.log(`[whatsapp] POST recibido, mensajes extraídos: ${incoming.length}`);
+  }
 
   // 200 inmediato para que Meta no reintente. El after() DEVUELVE las
   // promesas: si el callback fuera sincrónico, Vercel congelaría la función
@@ -228,28 +233,33 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     return;
   }
 
-  // 8. Cerebro: stock + últimos 10 mensajes + datos del lead.
-  const { data: stock } = await supabase
-    .from("vehicles")
-    .select("*")
-    .eq("estado", "disponible")
-    .order("marca")
-    .order("modelo");
-  const { data: stockSettings } = await supabase
-    .from("stock_settings")
-    .select("updated_at")
-    .eq("id", 1)
-    .maybeSingle();
-  const { data: history } = await supabase
-    .from("messages")
-    .select("rol, texto")
-    .eq("lead_id", lead.id)
-    .order("created_at", { ascending: false })
-    .limit(10);
+  // 8. Cerebro: stock + últimos mensajes + datos del lead (en paralelo).
+  // El mensaje entrante ya se guardó en el paso 4, así que se excluye del
+  // historial por su wa_id: si no, Gemini lo leería dos veces.
+  const [{ data: stock }, { data: stockSettings }, { data: history }] =
+    await Promise.all([
+      supabase
+        .from("vehicles")
+        .select("marca,modelo,version,anio,es_0km,km,precio,moneda,combustible,transmision,color,descripcion")
+        .eq("estado", "disponible")
+        .order("marca")
+        .order("modelo"),
+      supabase.from("stock_settings").select("updated_at").eq("id", 1).maybeSingle(),
+      supabase
+        .from("messages")
+        .select("rol, texto, wa_message_id")
+        .eq("lead_id", lead.id)
+        .order("created_at", { ascending: false })
+        .limit(11),
+    ]);
 
-  const historyAsc =
-    (history as Array<{ rol: string; texto: string }> | null) ?? [];
-  historyAsc.reverse();
+  const historyAsc = (
+    (history as Array<{ rol: string; texto: string; wa_message_id: string | null }> | null) ?? []
+  )
+    .reverse()
+    .filter((m) => m.wa_message_id !== msg.waId)
+    .slice(-10)
+    .map(({ rol, texto }) => ({ rol, texto }));
 
   let reply: string;
   let needsHuman = false;
@@ -265,7 +275,8 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     if (result.leadUpdate) {
       const patch: Record<string, string | boolean | null> = {};
       for (const [key, value] of Object.entries(result.leadUpdate)) {
-        if (value !== undefined) patch[key] = value as string | boolean;
+        // != null: si el modelo devuelve null no pisa un dato ya conocido.
+        if (value != null) patch[key] = value as string | boolean;
       }
       if (result.leadUpdate.requiere_humano === true) {
         patch.estado = "derivado";
@@ -292,12 +303,17 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     console.error(
       `[whatsapp] Gemini falló (${masked}): ${err instanceof Error ? err.message : String(err)}`,
     );
-    reply = technicalErrorReply();
-    needsHuman = true;
-    await supabase
-      .from("leads")
-      .update({ requiere_humano: true })
-      .eq("id", lead.id);
+    if (isGeminiQuotaError(err)) {
+      // 429: pedir paciencia SIN derivar (no es un lead caliente, es cuota).
+      reply = busyReply();
+    } else {
+      reply = technicalErrorReply();
+      needsHuman = true;
+      await supabase
+        .from("leads")
+        .update({ requiere_humano: true, estado: "derivado" })
+        .eq("id", lead.id);
+    }
     // Si ni el fallback genérico aplica (acá siempre hay reply), igual
     // garantizamos respuesta. fallbackReply se usa si el modelo devolvió
     // vacío en un caso borde ya cubierto por el schema (min 1).

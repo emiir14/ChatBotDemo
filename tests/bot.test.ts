@@ -3,6 +3,7 @@ import {
   buildUserContent,
   formatKnownLead,
   formatPrice,
+  isGeminiQuotaError,
   parseBotOutput,
   sanitizeReply,
 } from "@/lib/bot";
@@ -89,6 +90,25 @@ describe("buildUserContent (zona horaria)", () => {
     );
     expect(content).toContain("martes");
     expect(content).toContain("CÓRDOBA");
+  });
+  it("pone el stock antes que la fecha (caché) y escapa comillas", () => {
+    const content = buildUserContent(
+      { lead: null, history: [], vehicles: [], newMessage: 'Me dijo "20% off"' },
+      new Date("2026-10-07T12:00:00Z"),
+    );
+    expect(content.indexOf("STOCK DISPONIBLE")).toBeLessThan(
+      content.indexOf("FECHA Y HORA"),
+    );
+    expect(content).toContain('\\"20% off\\"');
+  });
+});
+
+describe("isGeminiQuotaError", () => {
+  it("distingue 429 de 5xx y de errores comunes", () => {
+    expect(isGeminiQuotaError({ status: 429 })).toBe(true);
+    expect(isGeminiQuotaError({ status: 503 })).toBe(false);
+    expect(isGeminiQuotaError(new Error("x"))).toBe(false);
+    expect(isGeminiQuotaError(null)).toBe(false);
   });
 });
 

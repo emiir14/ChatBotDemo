@@ -92,6 +92,8 @@ export interface ChatMessage {
   id: string;
   rol: "cliente" | "bot" | "sistema";
   texto: string;
+  /** Null = Meta lo rechazó (el panel lo muestra, pero no llegó). */
+  wa_message_id?: string | null;
   created_at: string;
 }
 

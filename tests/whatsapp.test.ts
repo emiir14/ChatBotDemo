@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { __resetEnvCache } from "@/lib/env";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  __resetEnvCache();
+});
 import {
   extractIncomingMessages,
   isRestartCommand,
@@ -8,7 +14,7 @@ import {
   signBody,
   verifyMetaSignature,
 } from "@/lib/whatsapp";
-import { buildReadReceiptBody, buildTemplateBody, normalizeArPhone } from "@/lib/meta";
+import { buildReadReceiptBody, buildTemplateBody, normalizeArPhone, normalizePhoneForMeta } from "@/lib/meta";
 
 const SECRET = "test-app-secret";
 
@@ -172,12 +178,31 @@ describe("buildReadReceiptBody (typing indicator)", () => {
 
 describe("buildTemplateBody (plantilla hello_world)", () => {
   it("arma el body oficial para envío fuera de ventana (con 9 normalizado)", () => {
-    expect(buildTemplateBody({ to: "5493515550101" })).toEqual({
-      messaging_product: "whatsapp",
-      to: "543515550101",
-      type: "template",
-      template: { name: "hello_world", language: { code: "en_US" } },
-    });
+    vi.stubEnv("SUPABASE_URL", "https://xyz.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "k");
+    vi.stubEnv("NORMALIZE_AR_PHONE", "true");
+    try {
+      expect(buildTemplateBody({ to: "5493515550101" })).toEqual({
+        messaging_product: "whatsapp",
+        to: "543515550101",
+        type: "template",
+        template: { name: "hello_world", language: { code: "en_US" } },
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      __resetEnvCache();
+    }
+  });
+  it("respeta NORMALIZE_AR_PHONE=false (número real)", () => {
+    vi.stubEnv("SUPABASE_URL", "https://xyz.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "k");
+    vi.stubEnv("NORMALIZE_AR_PHONE", "false");
+    try {
+      expect(normalizePhoneForMeta("5493515550101")).toBe("5493515550101");
+    } finally {
+      vi.unstubAllEnvs();
+      __resetEnvCache();
+    }
   });
 });
 

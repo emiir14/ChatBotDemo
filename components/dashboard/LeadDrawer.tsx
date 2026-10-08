@@ -244,6 +244,11 @@ export function LeadDrawer({
                 {data.messages.map((m) => (
                   <div key={m.id} className={`bubble ${m.rol === "cliente" ? "bubble-me" : "bubble-bot"}`}>
                     {m.texto}
+                    {m.rol === "bot" && !m.wa_message_id && (
+                      <span className="mt-1 block text-[0.7rem] font-semibold text-(--danger)">
+                        No llegó a WhatsApp (rechazado por Meta)
+                      </span>
+                    )}
                     <time>{formatHourCordoba(m.created_at)}</time>
                   </div>
                 ))}

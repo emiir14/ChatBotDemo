@@ -35,6 +35,10 @@ const envSchema = z.object({
   // En producción debe ser "false" para que nadie pueda borrar leads.
   DEMO_MODE: z.enum(["true", "false"]).default("false"),
 
+  // Normalización 549→54 al enviar a Meta (listas permitidas de números de
+  // prueba). Con número real poner en "false".
+  NORMALIZE_AR_PHONE: z.enum(["true", "false"]).default("true"),
+
   // Concesionaria (no son secretos; tienen defaults para la demo)
   DEALERSHIP_NAME: z.string().min(1).default("AutoCórdoba"),
   DEALERSHIP_ADDRESS: z

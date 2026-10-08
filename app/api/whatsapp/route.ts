@@ -79,12 +79,15 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const incoming = extractIncomingMessages(payload);
+  console.log(`[whatsapp] POST recibido, mensajes extraídos: ${incoming.length}`);
 
-  // 200 inmediato para que Meta no reintente; el trabajo sigue en background.
-  after(() => {
-    for (const msg of incoming) {
-      chainFor(msg.from, () => handleIncoming(msg));
-    }
+  // 200 inmediato para que Meta no reintente. El after() DEVUELVE las
+  // promesas: si el callback fuera sincrónico, Vercel congelaría la función
+  // al responder y el trabajo en background moriría a medias.
+  after(async () => {
+    await Promise.all(
+      incoming.map((msg) => chainFor(msg.from, () => handleIncoming(msg))),
+    );
   });
 
   return NextResponse.json({ ok: true });
@@ -96,7 +99,7 @@ export async function POST(req: Request): Promise<Response> {
 
 const chains = new Map<string, Promise<void>>();
 
-function chainFor(phone: string, job: () => Promise<void>): void {
+function chainFor(phone: string, job: () => Promise<void>): Promise<void> {
   const prev = chains.get(phone) ?? Promise.resolve();
   const next = prev
     .catch(() => undefined)
@@ -111,6 +114,7 @@ function chainFor(phone: string, job: () => Promise<void>): void {
   void next.finally(() => {
     if (chains.get(phone) === next) chains.delete(phone);
   });
+  return next;
 }
 
 // ---------------------------------------------------------------------------

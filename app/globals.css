@@ -104,7 +104,8 @@ button, [role="button"], summary {
   cursor: pointer;
 }
 
-/* ---------- Controles base ---------- */
+/* ---------- Controles base (en capa components: los utilities los pisan) ---------- */
+@layer components {
 .btn {
   display: inline-flex;
   align-items: center;
@@ -172,6 +173,7 @@ button, [role="button"], summary {
 .badge-neutral { background: var(--surface-3); color: var(--ink-2); }
 .badge-accent { background: var(--accent-soft); color: var(--accent-strong); }
 .dark .badge-accent { color: var(--accent); }
+} /* fin @layer components */
 
 /* ---------- Skeleton / estados ---------- */
 .skeleton {

@@ -103,7 +103,7 @@ function RecontactBox({
 
   if (draft === null) {
     return (
-      <button className="btn btn-primary btn-sm" onClick={makeDraft} disabled={loading}>
+      <button className="btn btn-primary btn-sm" onClick={makeDraft} disabled={loading} title="La IA redacta un seguimiento según el interés del lead">
         <MessageCircle size={15} aria-hidden="true" />
         {loading ? "Generando…" : "Recontactar con IA"}
       </button>
@@ -222,7 +222,7 @@ export function LeadDrawer({
             )}
           </div>
           {data?.lead && <TempBadge value={data.lead.temperatura} />}
-          <button ref={closeRef} onClick={onClose} className="btn btn-ghost btn-sm" aria-label="Cerrar conversación">
+          <button ref={closeRef} onClick={onClose} className="btn btn-ghost btn-sm" aria-label="Cerrar conversación" title="Cerrar (o tecla Escape)">
             <X size={16} aria-hidden="true" />
           </button>
         </div>
@@ -286,11 +286,12 @@ export function LeadDrawer({
                     href={waLink}
                     target="_blank"
                     rel="noopener noreferrer"
+                    title="Continuar vos la charla desde tu WhatsApp"
                   >
                     <MessageCircle size={14} aria-hidden="true" /> WhatsApp
                   </a>
                   {!data.lead.atendido_at && (
-                    <button className="btn btn-ghost btn-sm flex-1" onClick={markAttended} disabled={attending}>
+                    <button className="btn btn-ghost btn-sm flex-1" onClick={markAttended} disabled={attending} title="Sacar de la cola: ya lo atendieron">
                       <UserCheck size={14} aria-hidden="true" />
                       {attending ? "Marcando…" : "Marcar atendido"}
                     </button>

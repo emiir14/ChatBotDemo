@@ -207,6 +207,7 @@ export default function DashboardPage(): JSX.Element {
                 key={t.key}
                 role="tab"
                 aria-selected={active}
+                title={t.key === "resumen" ? "Métricas, cola de atención e insights" : t.key === "embudo" ? "Embudo, horarios y demanda vs stock" : t.key === "leads" ? "Tabla completa con filtros y búsqueda" : "Últimos eventos en vivo"}
                 onClick={() => setTab(t.key)}
                 className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-t-xl px-3 text-sm font-bold transition-colors hover:bg-(--surface-3) ${
                   active ? "bg-(--surface-2) text-(--ink) shadow-[inset_0_0_0_1px_var(--line)]" : "text-(--ink-3)"
@@ -357,7 +358,7 @@ export default function DashboardPage(): JSX.Element {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <button className="btn btn-primary btn-sm flex-1 sm:flex-none" onClick={() => setOpenLeadId(l.id)}>
+                      <button className="btn btn-primary btn-sm flex-1 sm:flex-none" onClick={() => setOpenLeadId(l.id)} title="Abrir la conversación completa">
                         Abrir
                       </button>
                       <a
@@ -365,11 +366,12 @@ export default function DashboardPage(): JSX.Element {
                         href={`https://wa.me/${l.telefono.replace(/\D/g, "")}`}
                         target="_blank"
                         rel="noopener noreferrer"
+                        title="Continuar vos la charla desde tu WhatsApp"
                         aria-label={`Abrir WhatsApp de ${l.nombre ?? l.telefono}`}
                       >
                         <MessageCircle size={14} aria-hidden="true" /> WhatsApp
                       </a>
-                      <button className="btn btn-ghost btn-sm flex-1 sm:flex-none" onClick={() => markAttended(l.id)}>
+                      <button className="btn btn-ghost btn-sm flex-1 sm:flex-none" onClick={() => markAttended(l.id)} title="Sacar de la cola: ya lo atendieron">
                         <UserCheck size={14} aria-hidden="true" /> Atendido
                       </button>
                     </div>

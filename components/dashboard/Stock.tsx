@@ -307,7 +307,7 @@ export function VehicleRow({
           </p>
           <p className="tnum mt-1 text-lg font-bold">{formatMoney(v.precio, v.moneda)}</p>
         </div>
-        <button className="btn btn-ghost btn-sm shrink-0" onClick={onEdit} aria-label={`Editar ${v.codigo}`}>
+        <button className="btn btn-ghost btn-sm shrink-0" onClick={onEdit} aria-label={`Editar ${v.codigo}`} title="Editar todos los datos del auto">
           <Pencil size={14} aria-hidden="true" /> Editar
         </button>
       </div>

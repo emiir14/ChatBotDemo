@@ -8,26 +8,26 @@ import type { Temperatura, Variation } from "./types";
 export function TempBadge({ value }: { value: Temperatura | null }): JSX.Element {
   if (value === "caliente") {
     return (
-      <span className="badge badge-hot">
+      <span className="badge badge-hot" title="Caliente: modelo concreto + presupuesto o pago + compra en menos de 30 días, o pidió visita, prueba o reserva">
         <Flame size={12} aria-hidden="true" /> Caliente
       </span>
     );
   }
   if (value === "tibio") {
     return (
-      <span className="badge badge-warm">
+      <span className="badge badge-warm" title="Tibio: interés definido pero faltan datos o compra a más de 30 días">
         <Thermometer size={12} aria-hidden="true" /> Tibio
       </span>
     );
   }
   if (value === "frio") {
     return (
-      <span className="badge badge-cold">
+      <span className="badge badge-cold" title="Frío: consulta general sin modelo ni urgencia, o solo precios sueltos">
         <Snowflake size={12} aria-hidden="true" /> Frío
       </span>
     );
   }
-  return <span className="badge badge-neutral">Sin clasificar</span>;
+  return <span className="badge badge-neutral" title="El bot todavía no lo clasificó">Sin clasificar</span>;
 }
 
 /** Variación vs período anterior (flecha + texto; "sin datos previos"). */

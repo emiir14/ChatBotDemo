@@ -119,6 +119,7 @@ export function Shell({
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
+                title={n.href === "/dashboard" ? "Panel: métricas, leads y actividad" : n.href === "/dashboard/embudo" ? "Embudo: tablero kanban por etapa" : "Stock: autos, precios e importación"}
                 className={`flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-[0.95rem] font-semibold transition-all ${
                   active ? "bg-white/12 text-white shadow-inner" : "text-white/65 hover:bg-white/6 hover:text-white"
                 }`}
@@ -138,6 +139,7 @@ export function Shell({
           <button
             onClick={toggleDark}
             aria-pressed={dark}
+            title={dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
             className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm font-semibold text-white/65 hover:bg-white/6 hover:text-white"
           >
             {dark ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
@@ -145,6 +147,7 @@ export function Shell({
           </button>
           <button
             onClick={logout}
+            title="Cerrar sesión del panel"
             className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm font-semibold text-white/65 hover:bg-white/6 hover:text-white"
           >
             <LogOut size={17} aria-hidden="true" />
@@ -237,7 +240,7 @@ export function Shell({
                 </button>
               )
             )}
-            <button className="btn btn-ghost btn-sm lg:hidden" onClick={logout} aria-label="Cerrar sesión">
+            <button className="btn btn-ghost btn-sm lg:hidden" onClick={logout} aria-label="Cerrar sesión" title="Cerrar sesión del panel">
               <LogOut size={15} aria-hidden="true" />
             </button>
             {extraActions}
@@ -257,10 +260,11 @@ export function Shell({
             const active = pathname === n.href;
             const Icon = n.icon;
             return (
-              <a
+                <a
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
+                title={n.href === "/dashboard" ? "Panel: métricas, leads y actividad" : n.href === "/dashboard/embudo" ? "Embudo: tablero kanban por etapa" : "Stock: autos, precios e importación"}
                 className={`flex min-h-[60px] flex-col items-center justify-center gap-0.5 text-[0.7rem] font-bold transition-colors ${
                   active ? "text-(--accent)" : "text-(--ink-3)"
                 }`}

@@ -54,12 +54,13 @@ export function SelfSend({ onToast }: { onToast: (msg: string) => void }): JSX.E
         style={{ minHeight: 34 }}
         inputMode="tel"
         placeholder="549351..."
+        title="Tu celular en dígitos, sin + ni espacios"
         value={phone}
         autoFocus
         onChange={(e) => setPhone(e.target.value)}
         aria-label="Tu celular para la prueba"
       />
-      <button className="btn btn-primary btn-sm" disabled={sending} onClick={send}>
+      <button className="btn btn-primary btn-sm" disabled={sending} onClick={send} title="Enviar plantilla de prueba a ese número">
         {sending ? "…" : "Enviar"}
       </button>
       <button className="btn btn-ghost btn-sm" onClick={() => setOpen(false)} aria-label="Cancelar">

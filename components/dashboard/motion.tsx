@@ -94,7 +94,7 @@ export function KpiCard({ icon, tint, label, value, format, variation, invert, s
           </span>
           <p className="text-[0.78rem] font-bold uppercase tracking-wide text-(--ink-2)">{label}</p>
         </div>
-        <p className="text-[1.7rem] font-bold leading-none tracking-tight">
+        <p className="text-[1.7rem] font-bold leading-none tracking-tight" title={`${label}: ${format(value)}`}>
           <CountUp value={value} format={format} />
         </p>
         <div className="flex items-center gap-2">

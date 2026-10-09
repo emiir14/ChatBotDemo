@@ -79,6 +79,7 @@ export default function EmbudoPage(): JSX.Element {
                     >
                       <button
                         onClick={() => setOpenLeadId(l.id)}
+                        title={`Abrir conversación de ${l.nombre ?? "este lead"}`}
                         className="card lift w-full p-3 text-left"
                       >
                         <span className="flex items-center justify-between gap-2">

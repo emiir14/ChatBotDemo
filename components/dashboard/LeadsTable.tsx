@@ -63,6 +63,7 @@ export function LeadsTable({
           <input
             className="input pl-9"
             placeholder="Buscar por nombre o teléfono…"
+            title="Buscar por nombre o teléfono"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             aria-label="Buscar por nombre o teléfono"
@@ -72,6 +73,7 @@ export function LeadsTable({
           <select
             className="select"
             value={filters.temperatura}
+            title="Filtrar por temperatura del lead"
             onChange={(e) => onFilters({ ...filters, temperatura: e.target.value as LeadFilters["temperatura"], page: 1 })}
             aria-label="Filtrar por temperatura"
           >
@@ -83,6 +85,7 @@ export function LeadsTable({
           <select
             className="select"
             value={filters.estado}
+            title="Filtrar por etapa del lead"
             onChange={(e) => onFilters({ ...filters, estado: e.target.value as LeadFilters["estado"], page: 1 })}
             aria-label="Filtrar por estado"
           >
@@ -122,6 +125,7 @@ export function LeadsTable({
                     onClick={() => onOpen(l.id)}
                     onKeyDown={(e) => e.key === "Enter" && onOpen(l.id)}
                     tabIndex={0}
+                    title="Abrir la conversación completa"
                     className={`cursor-pointer border-b border-(--line) last:border-0 hover:bg-(--surface-3) ${newIds.has(l.id) ? "row-new" : ""}`}
                   >
                     <td className="px-3 py-2.5">
@@ -181,6 +185,7 @@ export function LeadsTable({
               <button
                 className="btn btn-ghost btn-sm"
                 disabled={page <= 1}
+                title="Ir a la página anterior"
                 onClick={() => onFilters({ ...filters, page: page - 1 })}
               >
                 Anterior
@@ -189,6 +194,7 @@ export function LeadsTable({
               <button
                 className="btn btn-ghost btn-sm"
                 disabled={page >= pages}
+                title="Ir a la página siguiente"
                 onClick={() => onFilters({ ...filters, page: page + 1 })}
               >
                 Siguiente

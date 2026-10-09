@@ -3,7 +3,7 @@
 import { useMemo, type JSX } from "react";
 import { Area, AreaChart, Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { Lightbulb } from "lucide-react";
-import { HowCalculated, SectionTitle, VariationLabel } from "./ui";
+import { SectionTitle } from "./ui";
 import { diaNombre } from "@/lib/metrics";
 import type { SummaryResponse } from "./types";
 
@@ -25,32 +25,6 @@ export function Sparkline({ data }: { data: Array<{ day: string; n: number }> })
           />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
-  );
-}
-
-interface MetricCardProps {
-  label: string;
-  value: string;
-  sub?: string;
-  variation?: { pct: number; up: boolean } | null;
-  how: string;
-  spark?: Array<{ day: string; n: number }>;
-  big?: boolean;
-}
-
-/** Tarjeta de métrica: valor grande, contexto, sparkline, definición. */
-export function MetricCard({ label, value, sub, variation, how, spark, big }: MetricCardProps): JSX.Element {
-  return (
-    <div className="card flex flex-col gap-1 p-4">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[0.8rem] font-semibold text-(--ink-2)">{label}</p>
-      </div>
-      <p className={`tnum font-bold tracking-tight ${big ? "text-3xl" : "text-2xl"}`}>{value}</p>
-      {sub && <p className="text-xs text-(--ink-2)">{sub}</p>}
-      {variation !== undefined && <VariationLabel variation={variation ?? null} />}
-      {spark && <Sparkline data={spark} />}
-      <HowCalculated text={how} />
     </div>
   );
 }

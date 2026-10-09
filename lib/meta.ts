@@ -17,10 +17,6 @@ interface MetaSuccess {
   messages?: Array<{ id?: string }>;
 }
 
-interface MetaErrorBody {
-  error?: { code?: number; message?: string };
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

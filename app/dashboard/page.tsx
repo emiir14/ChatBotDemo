@@ -25,13 +25,13 @@ import {
 } from "lucide-react";
 import { Shell, type Period } from "@/components/dashboard/Header";
 import { SelfSend } from "@/components/dashboard/SelfSend";
-import { EmptyBox, ErrorBox, MetricSkeleton, TempBadge } from "@/components/dashboard/ui";
+import { ErrorBox, MetricSkeleton } from "@/components/dashboard/ui";
 import { Funnel, Heatmap, Insights, ModelsVsStock } from "@/components/dashboard/panels";
 import { ActivityFeed, KpiCard, SectionHead } from "@/components/dashboard/motion";
 import { LeadsTable, type LeadFilters } from "@/components/dashboard/LeadsTable";
 import { formatDurationShort } from "@/lib/metrics";
 import type { ActivityItem } from "@/lib/activity";
-import { formatPhone, maskPhoneFull, timeAgo } from "@/lib/format";
+import { formatPhone, timeAgo } from "@/lib/format";
 import type { LeadRow, LeadsResponse, StatusResponse, SummaryResponse } from "@/components/dashboard/types";
 
 const LeadDrawer = dynamic(
@@ -79,7 +79,6 @@ export default function DashboardPage(): JSX.Element {
   const [tab, setTab] = useState<PanelTab>("resumen");
   const [filters, setFilters] = useState<LeadFilters>({ temperatura: "all", estado: "all", q: "", page: 1 });
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
-  const [presentation, setPresentation] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const visible = useVisible();
@@ -189,8 +188,6 @@ export default function DashboardPage(): JSX.Element {
       hasDemoData={summary?.hasDemoData ?? false}
       period={period}
       onPeriod={setPeriod}
-      presentation={presentation}
-      onPresentation={setPresentation}
       demoMode={summary?.demoMode ?? false}
       resetCount={status?.leadsTotal ?? 0}
       onReset={resetPanel}
@@ -383,7 +380,7 @@ export default function DashboardPage(): JSX.Element {
         </section>
 
         {/* INSIGHTS */}
-        {!presentation && summary && summary.insights.length > 0 && <Insights items={summary.insights} />}
+        {summary && summary.insights.length > 0 && <Insights items={summary.insights} />}
         </>
       )}
 
@@ -446,7 +443,6 @@ export default function DashboardPage(): JSX.Element {
               onFilters={setFilters}
               onOpen={setOpenLeadId}
               newIds={newIds}
-              presentation={presentation}
             />
           )}
           </section>
@@ -468,7 +464,6 @@ export default function DashboardPage(): JSX.Element {
 
       <LeadDrawer
         leadId={openLeadId}
-        presentation={presentation}
         onClose={() => setOpenLeadId(null)}
         onAttended={refreshAll}
         onToast={pushToast}
@@ -501,7 +496,7 @@ export default function DashboardPage(): JSX.Element {
       </div>
 
       <footer className="mx-auto w-full max-w-6xl px-4 pb-8 text-xs text-(--ink-3)">
-        Teléfonos: {presentation ? maskPhoneFull("5493515550101") : formatPhone("5493515550101")} como ejemplo ·
+        Teléfonos: {formatPhone("5493515550101")} como ejemplo ·
         Zona horaria America/Argentina/Cordoba
       </footer>
     </Shell>

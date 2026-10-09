@@ -18,11 +18,6 @@ export function getSupabaseAdmin(): SupabaseClient {
   return cached;
 }
 
-/** Solo para tests: limpia el singleton. */
-export function __resetSupabaseCache(): void {
-  cached = null;
-}
-
 // ---------------------------------------------------------------------------
 // Tipos mínimos del dominio (Etapa 1). Se ampliarán en etapas siguientes.
 // ---------------------------------------------------------------------------

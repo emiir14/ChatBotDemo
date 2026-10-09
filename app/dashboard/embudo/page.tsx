@@ -111,7 +111,6 @@ export default function EmbudoPage(): JSX.Element {
       </main>
       <LeadDrawer
         leadId={openLeadId}
-        presentation={false}
         onClose={() => setOpenLeadId(null)}
         onAttended={() => mutate()}
         onToast={() => undefined}

@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Boxes, LayoutDashboard, LogOut, Moon, Play, Pause, Sun, Trash2 } from "lucide-react";
+import { BarChart3, Boxes, LayoutDashboard, LogOut, Moon, Sun, Trash2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type JSX, type ReactNode } from "react";
 import type { PeriodKey } from "@/lib/metrics";
@@ -45,8 +45,6 @@ export function Shell({
   hasDemoData,
   period,
   onPeriod,
-  presentation,
-  onPresentation,
   children,
   demoMode,
   resetCount,
@@ -57,8 +55,6 @@ export function Shell({
   hasDemoData: boolean;
   period?: Period;
   onPeriod?: (p: Period) => void;
-  presentation?: boolean;
-  onPresentation?: (v: boolean) => void;
   children: ReactNode;
   /** Botón "Vaciar panel" (solo demo): se muestra si viene onReset. */
   demoMode?: boolean;
@@ -190,17 +186,6 @@ export function Shell({
                   </button>
                 ))}
               </div>
-            )}
-            {onPresentation && (
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={() => onPresentation(!presentation)}
-                aria-pressed={!!presentation}
-                title="Agranda métricas, oculta teléfonos y quita secundarios"
-              >
-                {presentation ? <Pause size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
-                <span className="hidden sm:inline">Presentación</span>
-              </button>
             )}
             {demoMode && onReset && (
               confirmingReset ? (

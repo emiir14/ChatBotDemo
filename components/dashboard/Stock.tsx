@@ -2,7 +2,6 @@
 
 import { useState, type JSX } from "react";
 import { AlertTriangle, Pencil, Plus } from "lucide-react";
-import { ErrorBox } from "./ui";
 import { formatMoney, timeAgo } from "@/lib/format";
 
 export interface UIVehicle {
@@ -324,8 +323,4 @@ export function AddButton({ onClick }: { onClick: () => void }): JSX.Element {
       <Plus size={16} aria-hidden="true" /> Agregar auto
     </button>
   );
-}
-
-export function StockListError({ onRetry }: { onRetry: () => void }): JSX.Element {
-  return <ErrorBox message="Revisá tu conexión." onRetry={onRetry} />;
 }

@@ -20,8 +20,6 @@ export const vehicleInputSchema = z.object({
   descripcion: z.string().max(500).optional().default(""),
 });
 
-export type VehicleInput = z.infer<typeof vehicleInputSchema>;
-
 /** Actualiza la fecha de última actualización del stock. */
 export async function touchStockSettings(supabase: SupabaseClient): Promise<void> {
   await supabase

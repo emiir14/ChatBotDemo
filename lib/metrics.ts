@@ -1,8 +1,4 @@
-import {
-  BUSINESS_TIME_ZONE,
-  DEFAULT_BUSINESS_HOURS,
-  type BusinessHours,
-} from "@/lib/time";
+import { BUSINESS_TIME_ZONE } from "@/lib/time";
 
 /**
  * Matemática pura del panel (testeable): mediana, variación, embudo,
@@ -167,8 +163,4 @@ export function buildInsights(input: InsightInput): Insight[] {
     });
   }
   return out.slice(0, 3);
-}
-
-export function defaultBusinessHours(): BusinessHours {
-  return DEFAULT_BUSINESS_HOURS;
 }

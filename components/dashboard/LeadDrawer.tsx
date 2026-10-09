@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import useSWR from "swr";
 import { Flame, MessageCircle, Send, UserCheck, X } from "lucide-react";
 import { TempBadge } from "./ui";
-import { formatHourCordoba, formatPhone, maskPhoneFull, timeAgo } from "@/lib/format";
+import { formatHourCordoba, formatPhone, timeAgo } from "@/lib/format";
 import { isWithin24hWindow } from "@/lib/time";
 import { WINDOW_EXPIRED_MESSAGE } from "./window-message";
 import type { ChatMessage, LeadDetail } from "./types";
@@ -149,13 +149,11 @@ function RecontactBox({
 /** Drawer lateral con conversación, ficha, timeline y acciones. */
 export function LeadDrawer({
   leadId,
-  presentation,
   onClose,
   onAttended,
   onToast,
 }: {
   leadId: string | null;
-  presentation: boolean;
   onClose: () => void;
   onAttended: () => void;
   onToast: (msg: string) => void;
@@ -217,7 +215,7 @@ export function LeadDrawer({
             <p className="truncate font-bold">{data?.lead.nombre ?? "Cargando…"}</p>
             {data && (
               <p className="tnum text-xs text-(--ink-2)">
-                {presentation ? maskPhoneFull(data.lead.telefono) : formatPhone(data.lead.telefono)}
+                {formatPhone(data.lead.telefono)}
               </p>
             )}
           </div>

@@ -3,7 +3,7 @@
 import { useState, type FormEvent, type JSX } from "react";
 import { Flame, Search } from "lucide-react";
 import { TempBadge } from "./ui";
-import { formatPhone, maskPhoneFull, timeAgo } from "@/lib/format";
+import { formatPhone, timeAgo } from "@/lib/format";
 import type { LeadRow, LeadEstado, Temperatura } from "./types";
 
 export interface LeadFilters {
@@ -13,10 +13,10 @@ export interface LeadFilters {
   page: number;
 }
 
-function LeadMeta({ lead, presentation }: { lead: LeadRow; presentation: boolean }): JSX.Element {
+function LeadMeta({ lead }: { lead: LeadRow }): JSX.Element {
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8rem] text-(--ink-2)">
-      <span className="tnum">{presentation ? maskPhoneFull(lead.telefono) : formatPhone(lead.telefono)}</span>
+      <span className="tnum">{formatPhone(lead.telefono)}</span>
       {lead.auto_interes && <span className="font-semibold text-(--ink)">{lead.auto_interes}</span>}
       {lead.presupuesto && <span className="tnum">{lead.presupuesto}</span>}
       {lead.permuta && <span>Permuta</span>}
@@ -35,7 +35,6 @@ export function LeadsTable({
   onFilters,
   onOpen,
   newIds,
-  presentation,
 }: {
   items: LeadRow[];
   total: number;
@@ -45,7 +44,6 @@ export function LeadsTable({
   onFilters: (f: LeadFilters) => void;
   onOpen: (id: string) => void;
   newIds: Set<string>;
-  presentation: boolean;
 }): JSX.Element {
   const [q, setQ] = useState(filters.q);
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -132,7 +130,7 @@ export function LeadsTable({
                       <span className="font-semibold">{l.nombre ?? "Sin nombre"}</span>
                       <br />
                       <span className="tnum text-xs text-(--ink-2)">
-                        {presentation ? maskPhoneFull(l.telefono) : formatPhone(l.telefono)}
+                        {formatPhone(l.telefono)}
                       </span>
                     </td>
                     <td className="px-3 py-2.5">
@@ -171,7 +169,7 @@ export function LeadsTable({
                     <span className="font-bold">{l.nombre ?? "Sin nombre"}</span>
                     <TempBadge value={l.temperatura} />
                   </div>
-                  <LeadMeta lead={l} presentation={presentation} />
+                  <LeadMeta lead={l} />
                   {l.requiere_humano && (
                     <span className="badge badge-hot mt-2"><Flame size={12} aria-hidden="true" /> Necesita asesor</span>
                   )}

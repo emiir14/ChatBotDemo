@@ -107,12 +107,12 @@ export function LeadsTable({
           <div className="card hidden overflow-x-auto md:block">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-(--line) text-xs uppercase tracking-wide text-(--ink-3)">
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Lead</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Interés</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Temp.</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Humano</th>
-                  <th scope="col" className="px-3 py-2.5 font-semibold">Actividad</th>
+                <tr className="border-b border-(--line) text-xs uppercase tracking-wide text-(--ink-2)">
+                  <th scope="col" className="px-3 py-2.5 font-bold" title="Nombre y teléfono del contacto">Lead</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold" title="Modelo que le interesa y su presupuesto">Interés</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold" title="Temperatura: qué tan cerca está de comprar (caliente, tibio o frío)">Temperatura</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold" title="Si pidió hablar con una persona o el bot lo derivó a un asesor">Asesor</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold" title="Cuándo fue su último mensaje">Actividad</th>
                 </tr>
               </thead>
               <tbody>
@@ -138,7 +138,9 @@ export function LeadsTable({
                     <td className="px-3 py-2.5"><TempBadge value={l.temperatura} /></td>
                     <td className="px-3 py-2.5">
                       {l.requiere_humano ? (
-                        <span className="badge badge-hot"><Flame size={12} aria-hidden="true" /> Sí</span>
+                        <span className="badge badge-hot" title="Pidió un asesor humano">
+                          <Flame size={12} aria-hidden="true" /> Asesor
+                        </span>
                       ) : (
                         <span className="text-(--ink-3)">—</span>
                       )}

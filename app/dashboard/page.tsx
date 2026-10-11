@@ -9,7 +9,6 @@ import {
   BarChart3,
   CalendarClock,
   Flame,
-  Gauge,
   LayoutGrid,
   MessageCircle,
   MessageSquareText,
@@ -18,6 +17,7 @@ import {
   Sparkles,
   Table2,
   Timer,
+  Trophy,
   UserCheck,
   Users,
   Zap,
@@ -331,10 +331,12 @@ export default function DashboardPage(): JSX.Element {
                 sub={summary.site.humanReplyReference} delay={0.18}
               />
               <KpiCard
-                icon={<Gauge size={16} className="text-(--warm)" />} tint="var(--warm-soft)"
-                label="Tasa derivación"
-                value={m.atendidas.value > 0 ? (m.derivados.value / m.atendidas.value) * 100 : 0}
-                format={(n) => `${Math.round(n)}%`}
+                icon={<Trophy size={16} className="text-(--warm)" />} tint="var(--warm-soft)"
+                label="Top modelo"
+                value={summary.modelsVsStock[0]?.consultas ?? 0}
+                format={(n) => String(Math.round(n))}
+                text={summary.modelsVsStock[0]?.modelo}
+                sub={summary.modelsVsStock[0] ? `${summary.modelsVsStock[0].consultas} consultas` : "sin datos"}
                 delay={0.21}
               />
             </div>

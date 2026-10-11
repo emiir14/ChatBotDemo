@@ -51,6 +51,8 @@ interface KpiProps {
   label: string;
   value: number;
   format: (n: number) => string;
+  /** Si viene texto, se muestra en vez del número animado. */
+  text?: string;
   sub?: string;
   spark?: Array<{ day: string; n: number }>;
   delay?: number;
@@ -59,7 +61,7 @@ interface KpiProps {
 }
 
 /** Tarjeta KPI: chip de ícono, número animado y sparkline. */
-export function KpiCard({ icon, tint, label, value, format, sub, spark, delay = 0, tone = "ink" }: KpiProps): JSX.Element {
+export function KpiCard({ icon, tint, label, value, format, text, sub, spark, delay = 0, tone = "ink" }: KpiProps): JSX.Element {
   return (
     <FadeIn delay={delay}>
       <div className="card flex h-full flex-col gap-1 p-4">
@@ -69,9 +71,15 @@ export function KpiCard({ icon, tint, label, value, format, sub, spark, delay = 
           </span>
           <p className="text-[0.78rem] font-bold uppercase tracking-wide text-(--ink-2)">{label}</p>
         </div>
-        <p className={`text-[1.7rem] font-bold leading-none tracking-tight ${tone === "green" ? "text-(--ok)" : ""}`} title={`${label}: ${format(value)}`}>
-          <CountUp value={value} format={format} />
-        </p>
+        {text !== undefined ? (
+          <p className="truncate text-[1.4rem] font-bold leading-tight tracking-tight" title={`${label}: ${text}`}>
+            {text}
+          </p>
+        ) : (
+          <p className={`text-[1.7rem] font-bold leading-none tracking-tight ${tone === "green" ? "text-(--ok)" : ""}`} title={`${label}: ${format(value)}`}>
+            <CountUp value={value} format={format} />
+          </p>
+        )}
         {sub && <span className="text-[0.72rem] text-(--ink-2)">{sub}</span>}
         {spark && spark.length > 1 && <Sparkline data={spark} />}
       </div>

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   buildUserContent,
+  formatFinancing,
   formatKnownLead,
   formatPrice,
   isGeminiQuotaError,
   parseBotOutput,
   sanitizeReply,
 } from "@/lib/bot";
+import { activeFinancing, todayCordoba, type FinancingOption } from "@/lib/financing";
 import {
   __clearRateLimits,
   consumeRateLimit,
@@ -109,6 +111,56 @@ describe("isGeminiQuotaError", () => {
     expect(isGeminiQuotaError({ status: 503 })).toBe(false);
     expect(isGeminiQuotaError(new Error("x"))).toBe(false);
     expect(isGeminiQuotaError(null)).toBe(false);
+  });
+});
+
+const PLAN: FinancingOption = {
+  id: "p1",
+  nombre: "12 cuotas fijas",
+  entidad: "Banco Nación",
+  tna: 27,
+  cft: 45.2,
+  cuotas_min: 12,
+  cuotas_max: 12,
+  anticipo_min_pct: 30,
+  monto_max: 20000000,
+  requisitos: "Recibo de sueldo",
+  vigente_hasta: "2026-12-31",
+  activo: true,
+};
+
+describe("activeFinancing", () => {
+  it("filtra inactivos y vencidos (fecha Córdoba)", () => {
+    const rows = activeFinancing(
+      [
+        PLAN,
+        { ...PLAN, id: "p2", activo: false },
+        { ...PLAN, id: "p3", vigente_hasta: "2026-01-01" },
+        { ...PLAN, id: "p4", vigente_hasta: null },
+      ],
+      "2026-10-07",
+    );
+    expect(rows.map((r) => r.id)).toEqual(["p1", "p4"]);
+  });
+  it("todayCordoba devuelve AAAA-MM-DD", () => {
+    expect(todayCordoba(new Date("2026-10-07T12:00:00Z"))).toBe("2026-10-07");
+  });
+});
+
+describe("formatFinancing", () => {
+  it("resume el plan con números exactos y avisa si no hay", () => {
+    const text = formatFinancing([PLAN]);
+    expect(text).toContain("12 cuotas fijas");
+    expect(text).toContain("TNA 27%");
+    expect(text).toContain("12 cuotas");
+    expect(formatFinancing([])).toContain("derivá al asesor");
+  });
+  it("el contexto del bot incluye los planes", () => {
+    const content = buildUserContent(
+      { lead: null, history: [], vehicles: [], newMessage: "Hola", financing: [PLAN] },
+      new Date("2026-10-07T12:00:00Z"),
+    );
+    expect(content).toContain("12 cuotas fijas");
   });
 });
 

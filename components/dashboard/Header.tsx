@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Boxes, LayoutDashboard, LogOut, Moon, Sun, Trash2 } from "lucide-react";
+import { BarChart3, Boxes, LayoutDashboard, LogOut, Moon, Percent, Sun, Trash2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type JSX, type ReactNode } from "react";
 import type { PeriodKey } from "@/lib/metrics";
@@ -17,6 +17,7 @@ const NAV = [
   { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
   { href: "/dashboard/embudo", label: "Embudo", icon: BarChart3 },
   { href: "/dashboard/stock", label: "Stock", icon: Boxes },
+  { href: "/dashboard/financiacion", label: "Financiación", icon: Percent },
 ];
 
 function Logo({ size = 34 }: { size?: number }): JSX.Element {
@@ -240,7 +241,7 @@ export function Shell({
         aria-label="Secciones"
         className="fixed inset-x-0 bottom-0 z-30 border-t border-(--line) bg-(--surface-2)/98 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
       >
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-4">
           {NAV.map((n) => {
             const active = pathname === n.href;
             const Icon = n.icon;

@@ -169,7 +169,7 @@ export default function DashboardPage(): JSX.Element {
     refreshAll();
   }
 
-  const queueItems = useMemo(() => (queue?.items ?? []).slice(0, 5), [queue]);
+  const queueItems = useMemo(() => queue?.items ?? [], [queue]);
   const m = summary?.metrics;
 
   return (

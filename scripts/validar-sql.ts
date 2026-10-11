@@ -42,6 +42,18 @@ async function main(): Promise<void> {
   await db.exec("CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;");
   await run("supabase/migration_dashboard.sql");
   await run("supabase/migration_stock.sql");
+  await run("supabase/migration_financing.sql");
+
+  // Financiación: tabla + plantilla precargada (idempotente)
+  const fin = await one<number>("SELECT count(*)::int AS v FROM financing_options");
+  assert(fin === 3, `plantilla de financiación precargada (${fin})`);
+  await run("supabase/migration_financing.sql");
+  const fin2 = await one<number>("SELECT count(*)::int AS v FROM financing_options");
+  assert(fin2 === 3, `financiación idempotente (${fin2})`);
+  const vig = await one<number>(
+    "SELECT count(*)::int AS v FROM financing_options WHERE activo AND (vigente_hasta IS NULL OR vigente_hasta >= '2026-10-07')",
+  );
+  assert(vig === 3, `planes citables (${vig})`);
 
   // Stock: códigos únicos, settings y change log
   const cods = await db.query<{ n: number }>(

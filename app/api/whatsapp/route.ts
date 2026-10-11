@@ -17,6 +17,7 @@ import {
   isGeminiQuotaError,
   technicalErrorReply,
 } from "@/lib/bot";
+import { activeFinancing, todayCordoba, type FinancingOption } from "@/lib/financing";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getSupabaseAdmin, type Lead, type Vehicle } from "@/lib/supabase";
 
@@ -236,7 +237,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   // 8. Cerebro: stock + últimos mensajes + datos del lead (en paralelo).
   // El mensaje entrante ya se guardó en el paso 4, así que se excluye del
   // historial por su wa_id: si no, Gemini lo leería dos veces.
-  const [{ data: stock }, { data: stockSettings }, { data: history }] =
+  const [{ data: stock }, { data: stockSettings }, { data: history }, { data: financing }] =
     await Promise.all([
       supabase
         .from("vehicles")
@@ -251,6 +252,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
         .eq("lead_id", lead.id)
         .order("created_at", { ascending: false })
         .limit(11),
+      supabase.from("financing_options").select("*").eq("activo", true),
     ]);
 
   const historyAsc = (
@@ -270,6 +272,10 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
       vehicles: (stock ?? []) as Vehicle[],
       newMessage: msg.body,
       stockUpdatedAt: (stockSettings as { updated_at?: string } | null)?.updated_at ?? null,
+      financing: activeFinancing(
+        ((financing ?? []) as FinancingOption[]),
+        todayCordoba(),
+      ),
     });
     reply = result.reply;
     if (result.leadUpdate) {

@@ -229,6 +229,8 @@ button, [role="button"], summary {
   font-size: 0.9rem;
   line-height: 1.45;
   box-shadow: 0 1px 1px rgb(0 0 0 / 0.08);
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .bubble-bot { background: var(--bubble-bot); border: 1px solid var(--line); align-self: flex-start; border-top-left-radius: 2px; }
 .bubble-me { background: var(--bubble-me); align-self: flex-end; border-top-right-radius: 2px; }

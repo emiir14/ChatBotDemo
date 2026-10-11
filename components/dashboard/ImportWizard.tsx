@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type JSX } from "react";
-import { FileSpreadsheet, Upload, X } from "lucide-react";
+import { Download, FileSpreadsheet, Upload, X } from "lucide-react";
 import { TEMPLATE_COLUMNS } from "@/lib/stock-import";
 
 interface PreviewData {
@@ -88,6 +88,9 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
       </p>
 
       <div className="mt-3 flex flex-col gap-2.5">
+        <a className="btn btn-ghost btn-sm w-fit" href="/api/dashboard/stock/template" download title="Bajá un CSV de ejemplo con el formato correcto">
+          <Download size={14} aria-hidden="true" /> Descargar ejemplo CSV
+        </a>
         <details className="rounded-xl bg-(--surface-3) px-3 py-2.5 text-sm">
           <summary className="cursor-pointer font-bold">Ver formato esperado del archivo</summary>
           <p className="mt-1.5 text-(--ink-2)">

@@ -259,12 +259,12 @@ export default function DashboardPage(): JSX.Element {
                   min={1}
                   max={30}
                   defaultValue={summary.stock.staleDays}
-                  className="input tnum w-20"
-                  style={{ minHeight: 36 }}
+                  className="input tnum w-14"
+                  style={{ minHeight: 30, fontSize: "0.8rem" }}
                   aria-label="Días sin actualizar para alertar"
                 />
                 <span className="text-xs text-(--ink-2)">días</span>
-                <button type="submit" className="btn btn-ghost btn-sm" title="Guardar a los cuántos días aparece esta alerta">
+                <button type="submit" className="btn btn-ghost btn-xs" title="Guardar a los cuántos días aparece esta alerta">
                   Guardar umbral
                 </button>
               </form>

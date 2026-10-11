@@ -131,6 +131,8 @@ button, [role="button"], summary {
 .btn-solid:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); }
 .dark .btn-solid:hover:not(:disabled) { color: var(--accent); }
 .btn-sm { min-height: 36px; padding: 0.3rem 0.7rem; font-size: 0.83rem; }
+/* Extra compacto (controles inline como el umbral de stock) */
+.btn-xs { min-height: 30px; padding: 0.15rem 0.55rem; font-size: 0.78rem; }
 
 .input, .select, .textarea {
   width: 100%;

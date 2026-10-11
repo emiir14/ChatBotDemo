@@ -136,7 +136,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   // Frescura del stock (alerta si supera el umbral configurable).
   const st = (stockSettingsRes.data as { updated_at?: string; stale_days?: number } | null) ?? {};
   const stockUpdatedAt = st.updated_at ?? null;
-  const staleDays = st.stale_days ?? 2;
+  const staleDays = st.stale_days ?? 4;
   const daysSinceUpdate = stockUpdatedAt
     ? (Date.now() - new Date(stockUpdatedAt).getTime()) / (24 * 60 * 60 * 1000)
     : null;

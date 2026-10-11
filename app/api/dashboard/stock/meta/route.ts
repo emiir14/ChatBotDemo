@@ -25,7 +25,7 @@ export async function GET(): Promise<NextResponse> {
   }
   const s = (settings as { updated_at?: string; stale_days?: number } | null) ?? {};
   return NextResponse.json({
-    settings: { updated_at: s.updated_at ?? null, stale_days: s.stale_days ?? 2 },
+    settings: { updated_at: s.updated_at ?? null, stale_days: s.stale_days ?? 4 },
     changes: changes ?? [],
   });
 }

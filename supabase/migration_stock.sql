@@ -60,7 +60,7 @@ create trigger trg_vehicles_updated_at
 create table if not exists public.stock_settings (
   id                integer primary key default 1 check (id = 1),
   updated_at        timestamptz not null default now(),
-  stale_days        integer not null default 2 check (stale_days >= 1),
+  stale_days        integer not null default 4 check (stale_days >= 1),
   created_at        timestamptz not null default now()
 );
 
@@ -69,6 +69,10 @@ alter table public.stock_settings enable row level security;
 insert into public.stock_settings (id)
 values (1)
 on conflict (id) do nothing;
+
+-- Umbral por defecto: 4 días (solo si todavía está el default anterior de 2;
+-- si el dueño ya lo personalizó, se respeta su valor).
+update public.stock_settings set stale_days = 4 where id = 1 and stale_days = 2;
 
 -- ----------------------------------------------------------------------------
 -- 3. Registro de cambios (quién, qué, cuándo)

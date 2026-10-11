@@ -154,7 +154,7 @@ export default function StockPage(): JSX.Element {
 
         <StockAlert
           updatedAt={data?.settings.updated_at ?? meta?.settings.updated_at ?? null}
-          staleDays={data?.settings.stale_days ?? meta?.settings.stale_days ?? 2}
+          staleDays={data?.settings.stale_days ?? meta?.settings.stale_days ?? 4}
           onSaveThreshold={saveThreshold}
         />
 

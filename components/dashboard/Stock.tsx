@@ -110,11 +110,12 @@ export function StockAlert({
           max={30}
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
-          className="input w-20"
+          className="input tnum w-14"
+          style={{ minHeight: 30, fontSize: "0.8rem" }}
           aria-label="Días sin actualizar para alertar"
         />
         <span className="text-xs text-(--ink-2)">días</span>
-        <button type="submit" className="btn btn-ghost btn-sm" disabled={saving} title="Guardar a los cuántos días aparece la alerta">
+        <button type="submit" className="btn btn-ghost btn-xs" disabled={saving} title="Guardar a los cuántos días aparece la alerta">
           Guardar umbral
         </button>
       </form>

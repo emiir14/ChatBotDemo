@@ -170,7 +170,6 @@ export function LeadDrawer({
 
   useEffect(() => {
     if (!leadId) return;
-    setAttending(false);
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === "Escape") onClose();

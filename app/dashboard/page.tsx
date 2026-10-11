@@ -18,6 +18,7 @@ import {
   Sparkles,
   Table2,
   Timer,
+  UserCheck,
   Users,
   Zap,
 } from "lucide-react";

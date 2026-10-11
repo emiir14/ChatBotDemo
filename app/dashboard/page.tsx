@@ -264,8 +264,8 @@ export default function DashboardPage(): JSX.Element {
                   aria-label="Días sin actualizar para alertar"
                 />
                 <span className="text-xs text-(--ink-2)">días</span>
-                <button type="submit" className="btn btn-ghost btn-sm">
-                  Guardar
+                <button type="submit" className="btn btn-ghost btn-sm" title="Guardar a los cuántos días aparece esta alerta">
+                  Guardar umbral
                 </button>
               </form>
             </div>

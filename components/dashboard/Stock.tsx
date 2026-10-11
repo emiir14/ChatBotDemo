@@ -114,8 +114,8 @@ export function StockAlert({
           aria-label="Días sin actualizar para alertar"
         />
         <span className="text-xs text-(--ink-2)">días</span>
-        <button type="submit" className="btn btn-ghost btn-sm" disabled={saving}>
-          Guardar
+        <button type="submit" className="btn btn-ghost btn-sm" disabled={saving} title="Guardar a los cuántos días aparece la alerta">
+          Guardar umbral
         </button>
       </form>
     </div>

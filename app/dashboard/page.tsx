@@ -226,7 +226,7 @@ export default function DashboardPage(): JSX.Element {
               El stock lleva {Math.floor(summary.stock.daysSinceUpdate ?? 0)} días sin actualizarse.
               El bot ya avisa a los clientes que la disponibilidad puede haber cambiado.
             </p>
-            <div className="flex flex-wrap items-center gap-2">
+            <div>
               <form
                 className="flex items-center gap-1.5"
                 title="Cambiar a los cuántos días se muestra esta alerta"
@@ -268,11 +268,6 @@ export default function DashboardPage(): JSX.Element {
                   Guardar umbral
                 </button>
               </form>
-            </div>
-            <div>
-              <a href="/dashboard/stock" className="btn btn-ghost btn-sm">
-                Actualizar stock
-              </a>
             </div>
           </motion.div>
         )}

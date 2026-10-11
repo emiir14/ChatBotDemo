@@ -219,14 +219,14 @@ export default function DashboardPage(): JSX.Element {
             role="alert"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card flex flex-col gap-2 border-(--warm) p-3.5 sm:flex-row sm:items-center"
+            className="card flex flex-col gap-2.5 border-(--warm) p-3.5"
           >
             <p className="flex items-center gap-2 text-sm font-semibold text-(--warm)">
               <AlertTriangle size={16} aria-hidden="true" />
               El stock lleva {Math.floor(summary.stock.daysSinceUpdate ?? 0)} días sin actualizarse.
               El bot ya avisa a los clientes que la disponibilidad puede haber cambiado.
             </p>
-            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            <div className="flex flex-wrap items-center gap-2">
               <form
                 className="flex items-center gap-1.5"
                 title="Cambiar a los cuántos días se muestra esta alerta"
@@ -268,6 +268,8 @@ export default function DashboardPage(): JSX.Element {
                   Guardar
                 </button>
               </form>
+            </div>
+            <div>
               <a href="/dashboard/stock" className="btn btn-ghost btn-sm">
                 Actualizar stock
               </a>

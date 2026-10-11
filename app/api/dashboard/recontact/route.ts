@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { getEnv, isDemoMode } from "@/lib/env";
+import { getEnv } from "@/lib/env";
 import { getSupabaseAdmin, type Lead } from "@/lib/supabase";
 import { isWithin24hWindow } from "@/lib/time";
 import { sendWhatsAppText } from "@/lib/meta";
@@ -61,8 +61,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     const text = parsed.data.text.trim();
 
     // Leads demo: SIMULACIÓN. Nunca tocar la API de Meta (esos teléfonos
-    // podrían pertenecer a personas reales).
-    if (leadRow.origen_demo || isDemoMode(getEnv())) {
+    // ficticios podrían pertenecer a personas reales). Los leads reales
+    // SIEMPRE intentan el envío de verdad (con su ventana de 24 hs).
+    if (leadRow.origen_demo) {
       await supabase.from("messages").insert({
         lead_id: leadRow.id,
         rol: "bot",

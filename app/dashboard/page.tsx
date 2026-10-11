@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 import useSWR from "swr";
 import {
-  Activity,
   AlertTriangle,
   BarChart3,
   CalendarClock,
@@ -19,11 +18,11 @@ import {
   Sparkles,
   Table2,
   Timer,
-  UserCheck,
   Users,
   Zap,
 } from "lucide-react";
 import { Shell, type Period } from "@/components/dashboard/Header";
+import { AttendButton } from "@/components/dashboard/AttendButton";
 import { SelfSend } from "@/components/dashboard/SelfSend";
 import { ErrorBox, MetricSkeleton } from "@/components/dashboard/ui";
 import { Funnel, Heatmap, Insights, ModelsVsStock } from "@/components/dashboard/panels";
@@ -65,13 +64,12 @@ function useVisible(): boolean {
   return visible;
 }
 
-type PanelTab = "resumen" | "embudo" | "leads" | "actividad";
+type PanelTab = "resumen" | "embudo" | "leads";
 
 const TABS: Array<{ key: PanelTab; label: string; icon: typeof LayoutGrid }> = [
   { key: "resumen", label: "Resumen", icon: LayoutGrid },
-  { key: "embudo", label: "Embudo de ventas", icon: BarChart3 },
+  { key: "embudo", label: "Resumen de consultas", icon: BarChart3 },
   { key: "leads", label: "Leads", icon: Users },
-  { key: "actividad", label: "Actividad", icon: Activity },
 ];
 
 export default function DashboardPage(): JSX.Element {
@@ -170,15 +168,6 @@ export default function DashboardPage(): JSX.Element {
     refreshAll();
   }
 
-  async function markAttended(id: string): Promise<void> {    await fetch("/api/dashboard/attend", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ leadId: id }),
-    });
-    pushToast("Marcado como atendido");
-    refreshAll();
-  }
-
   const queueItems = useMemo(() => (queue?.items ?? []).slice(0, 5), [queue]);
   const m = summary?.metrics;
 
@@ -204,7 +193,7 @@ export default function DashboardPage(): JSX.Element {
                 key={t.key}
                 role="tab"
                 aria-selected={active}
-                title={t.key === "resumen" ? "Métricas, cola de atención e insights" : t.key === "embudo" ? "Embudo, horarios y demanda vs stock" : t.key === "leads" ? "Tabla completa con filtros y búsqueda" : "Últimos eventos en vivo"}
+                title={t.key === "resumen" ? "Métricas, cola de atención e insights" : t.key === "embudo" ? "Embudo, horarios y demanda vs stock" : "Tabla completa con filtros y búsqueda"}
                 onClick={() => setTab(t.key)}
                 className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-t-xl px-3 text-sm font-bold transition-colors hover:bg-(--surface-3) ${
                   active ? "bg-(--surface-2) text-(--ink) shadow-[inset_0_0_0_1px_var(--line)]" : "text-(--ink-3)"
@@ -275,39 +264,40 @@ export default function DashboardPage(): JSX.Element {
                 how="Leads con al menos una respuesta del bot en el período." delay={0.03}
               />
               <KpiCard
-                icon={<Timer size={16} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
-                label="1ra respuesta" value={m.primeraRespuestaSeg.value ?? 0}
-                format={(n) => (m.primeraRespuestaSeg.value === null ? "—" : formatDurationShort(n))}
-                sub={summary.site.humanReplyReference}
-                how="Mediana entre el primer mensaje del cliente y la primera respuesta del bot." delay={0.06}
-              />
-              <KpiCard
-                icon={<MoonStar size={16} className="text-indigo-700 dark:text-indigo-300" />} tint="var(--cold-soft)"
-                label="Fuera de hora" value={m.fueraHorario.value} format={(n) => String(Math.round(n))}
-                variation={m.fueraHorario.variation} sub="antes se perdían"
-                how="Atendidas fuera del horario comercial (lun-vie 9-18, sáb 9-13)." delay={0.09}
+                icon={<UserCheck size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
+                label="En espera" value={summary.actionCount} format={(n) => String(Math.round(n))}
+                sub="esperan asesor" how="Leads que pidieron humano y todavía no fueron marcados como atendidos." delay={0.06}
               />
               <KpiCard
                 icon={<Flame size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="Calientes" value={m.calientes.value} format={(n) => String(Math.round(n))}
-                variation={m.calientes.variation}
-                how="Modelo + pago + compra <30 días, o pidió visita, prueba o reserva." delay={0.12}
-              />
-              <KpiCard
-                icon={<Gauge size={16} className="text-(--warm)" />} tint="var(--warm-soft)"
-                label="Calificación" value={m.tasaCalificacion.value} format={(n) => `${Math.round(n)}%`}
-                how="% de leads con nombre, modelo y presupuesto." delay={0.15}
-              />
-              <KpiCard
-                icon={<MessageCircle size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
-                label="Mensajes" value={m.mensajes.value} format={(n) => String(Math.round(n))}
-                sub="bot + clientes" how="Mensajes totales intercambiados en el período." delay={0.18}
+                how="Modelo + pago + compra <30 días, o pidió visita, prueba o reserva." delay={0.09}
               />
               <KpiCard
                 icon={<PhoneForwarded size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="Derivados" value={m.derivados.value} format={(n) => String(Math.round(n))}
                 variation={m.derivados.variation} sub="al asesor"
-                how="Leads que pidieron humano o mostraron intención de cierre." delay={0.21}
+                how="Leads que pidieron humano o mostraron intención de cierre." delay={0.12}
+              />
+              <KpiCard
+                icon={<MoonStar size={16} className="text-indigo-700 dark:text-indigo-300" />} tint="var(--cold-soft)"
+                label="Fuera de hora" value={m.fueraHorario.value} format={(n) => String(Math.round(n))}
+                variation={m.fueraHorario.variation} tone="green"
+                how="Atendidas fuera del horario comercial (lun-vie 9-18, sáb 9-13)." delay={0.15}
+              />
+              <KpiCard
+                icon={<Timer size={16} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
+                label="1ra respuesta" value={m.primeraRespuestaSeg.value ?? 0}
+                format={(n) => (m.primeraRespuestaSeg.value === null ? "—" : formatDurationShort(n))}
+                sub={summary.site.humanReplyReference}
+                how="Mediana entre el primer mensaje del cliente y la primera respuesta del bot." delay={0.18}
+              />
+              <KpiCard
+                icon={<Gauge size={16} className="text-(--warm)" />} tint="var(--warm-soft)"
+                label="Tasa derivación"
+                value={m.atendidas.value > 0 ? (m.derivados.value / m.atendidas.value) * 100 : 0}
+                format={(n) => `${Math.round(n)}%`}
+                how="% de atendidas que terminaron derivadas al asesor." delay={0.21}
               />
             </div>
           )}
@@ -368,9 +358,14 @@ export default function DashboardPage(): JSX.Element {
                       >
                         <MessageCircle size={14} aria-hidden="true" /> WhatsApp
                       </a>
-                      <button className="btn btn-ghost btn-sm flex-1 sm:flex-none" onClick={() => markAttended(l.id)} title="Sacar de la cola: ya lo atendieron">
-                        <UserCheck size={14} aria-hidden="true" /> Atendido
-                      </button>
+                      <AttendButton
+                        leadId={l.id}
+                        onDone={() => {
+                          pushToast("Marcado como atendido");
+                          refreshAll();
+                        }}
+                        onError={() => pushToast("No se pudo marcar. Probá de nuevo.")}
+                      />
                     </div>
                   </motion.li>
                 ))}
@@ -381,6 +376,15 @@ export default function DashboardPage(): JSX.Element {
 
         {/* INSIGHTS */}
         {summary && summary.insights.length > 0 && <Insights items={summary.insights} />}
+
+        {/* ACTIVIDAD (compacta, vive en Resumen) */}
+        <section aria-label="Actividad reciente">
+          <SectionHead
+            icon={<Sparkles size={17} className="text-(--warm)" />} tint="var(--warm-soft)"
+            title="Actividad reciente" hint="Lo último que pasó."
+          />
+          <ActivityFeed items={(activity?.items ?? []).slice(0, 6)} onOpen={setOpenLeadId} />
+        </section>
         </>
       )}
 
@@ -449,15 +453,6 @@ export default function DashboardPage(): JSX.Element {
         </>
       )}
 
-      {tab === "actividad" && (
-        <section aria-label="Actividad">
-          <SectionHead
-            icon={<Sparkles size={17} className="text-(--warm)" />} tint="var(--warm-soft)"
-            title="Actividad en vivo" hint="Lo último que pasó, al instante."
-          />
-          <ActivityFeed items={activity?.items ?? []} onOpen={setOpenLeadId} />
-        </section>
-      )}
         </motion.div>
       </AnimatePresence>
       </main>

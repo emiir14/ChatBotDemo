@@ -54,6 +54,7 @@ export interface LeadRow {
   estado: LeadEstado;
   origen_demo: boolean;
   atendido_at: string | null;
+  atendido_por: string | null;
   last_customer_message_at: string | null;
   created_at: string;
 }

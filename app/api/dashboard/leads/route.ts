@@ -36,7 +36,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   let query = supabase
     .from("leads")
     .select(
-      "id,telefono,nombre,auto_interes,presupuesto,permuta,temperatura,requiere_humano,estado,origen_demo,atendido_at,last_customer_message_at,created_at",
+      "id,telefono,nombre,auto_interes,presupuesto,permuta,temperatura,requiere_humano,estado,origen_demo,atendido_at,atendido_por,last_customer_message_at,created_at",
       { count: "exact" },
     );
 

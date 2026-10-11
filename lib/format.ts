@@ -11,14 +11,6 @@ export function formatPhone(phone: string | null | undefined): string {
   return `+54 9 ${m[1]} ${m[2]} ${m[3]}`;
 }
 
-/** Modo presentación: oculta los últimos 4 dígitos. */
-export function maskPhoneFull(phone: string | null | undefined): string {
-  if (!phone) return "—";
-  const d = phone.replace(/\D/g, "");
-  if (d.length < 4) return "••••";
-  return `••• ••• ${d.slice(-4)}`;
-}
-
 /** "hace 5 min", "hace 2 h", "ayer", etc. */
 export function timeAgo(iso: string | null | undefined, now: Date = new Date()): string {
   if (!iso) return "—";

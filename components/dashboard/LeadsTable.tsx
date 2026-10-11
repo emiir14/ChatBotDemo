@@ -113,6 +113,7 @@ export function LeadsTable({
                   <th scope="col" className="px-3 py-2.5 font-bold" title="Modelo que le interesa y su presupuesto">Interés</th>
                   <th scope="col" className="px-3 py-2.5 font-bold" title="Temperatura: qué tan cerca está de comprar (caliente, tibio o frío)">Temperatura</th>
                   <th scope="col" className="px-3 py-2.5 font-bold" title="Si pidió hablar con una persona o el bot lo derivó a un asesor">Asesor</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold" title="Quién lo atendió (se carga al marcar como atendido)">Atendido por</th>
                   <th scope="col" className="px-3 py-2.5 font-bold" title="Cuándo fue su último mensaje">Actividad</th>
                 </tr>
               </thead>
@@ -147,6 +148,9 @@ export function LeadsTable({
                         <span className="text-(--ink-3)">—</span>
                       )}
                     </td>
+                    <td className="px-3 py-2.5 text-sm">
+                      {l.atendido_por ?? <span className="text-(--ink-3)">—</span>}
+                    </td>
                     <td className="tnum px-3 py-2.5 text-xs text-(--ink-2)">
                       {timeAgo(l.last_customer_message_at ?? l.created_at)}
                     </td>
@@ -170,6 +174,9 @@ export function LeadsTable({
                     <TempBadge value={l.temperatura} />
                   </div>
                   <LeadMeta lead={l} />
+                  {l.atendido_por && (
+                    <p className="mt-1 text-xs text-(--ink-2)">Atendido por <strong>{l.atendido_por}</strong></p>
+                  )}
                   {l.requiere_humano && (
                     <span className="badge badge-hot mt-2"><Flame size={12} aria-hidden="true" /> Necesita asesor</span>
                   )}
@@ -181,7 +188,7 @@ export function LeadsTable({
           {pages > 1 && (
             <nav className="mt-3 flex items-center justify-between text-sm" aria-label="Paginación">
               <button
-                className="btn btn-ghost btn-sm"
+                className="btn btn-solid btn-sm"
                 disabled={page <= 1}
                 title="Ir a la página anterior"
                 onClick={() => onFilters({ ...filters, page: page - 1 })}
@@ -190,7 +197,7 @@ export function LeadsTable({
               </button>
               <span className="tnum text-(--ink-2)">Página {page} de {pages}</span>
               <button
-                className="btn btn-ghost btn-sm"
+                className="btn btn-solid btn-sm"
                 disabled={page >= pages}
                 title="Ir a la página siguiente"
                 onClick={() => onFilters({ ...filters, page: page + 1 })}

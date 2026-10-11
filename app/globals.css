@@ -126,6 +126,10 @@ button, [role="button"], summary {
 .btn-primary:hover:not(:disabled) { background: var(--accent-strong); }
 .btn-ghost { background: transparent; color: var(--ink-2); border-color: var(--line); }
 .btn-ghost:hover:not(:disabled) { border-color: var(--ink-3); color: var(--ink); }
+/* Sólido suave: visible en ambos modos (paginación, acciones secundarias) */
+.btn-solid { background: var(--surface-2); color: var(--ink); border-color: var(--line); font-weight: 700; }
+.btn-solid:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); }
+.dark .btn-solid:hover:not(:disabled) { color: var(--accent); }
 .btn-sm { min-height: 36px; padding: 0.3rem 0.7rem; font-size: 0.83rem; }
 
 .input, .select, .textarea {

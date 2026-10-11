@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import useSWR from "swr";
-import { Flame, MessageCircle, Send, UserCheck, X } from "lucide-react";
+import { Flame, MessageCircle, Send, X } from "lucide-react";
+import { AttendButton } from "./AttendButton";
 import { TempBadge } from "./ui";
 import { formatHourCordoba, formatPhone, timeAgo } from "@/lib/format";
 import { isWithin24hWindow } from "@/lib/time";
@@ -159,7 +160,6 @@ export function LeadDrawer({
   onToast: (msg: string) => void;
 }): JSX.Element | null {
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [attending, setAttending] = useState(false);
   const { data, error, mutate } = useSWR(
     leadId ? `/api/dashboard/lead/${leadId}` : null,
     fetcher,
@@ -184,25 +184,6 @@ export function LeadDrawer({
   }, [leadId, onClose]);
 
   if (!leadId) return null;
-
-  async function markAttended(): Promise<void> {
-    setAttending(true);
-    try {
-      const res = await fetch("/api/dashboard/attend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId }),
-      });
-      if (!res.ok) throw new Error();
-      onToast("Marcado como atendido");
-      onAttended();
-      refresh();
-    } catch {
-      onToast("No se pudo marcar. Probá de nuevo.");
-    } finally {
-      setAttending(false);
-    }
-  }
 
   const waLink = data ? `https://wa.me/${data.lead.telefono.replace(/\D/g, "")}` : "#";
 
@@ -289,10 +270,15 @@ export function LeadDrawer({
                     <MessageCircle size={14} aria-hidden="true" /> WhatsApp
                   </a>
                   {!data.lead.atendido_at && (
-                    <button className="btn btn-ghost btn-sm flex-1" onClick={markAttended} disabled={attending} title="Sacar de la cola: ya lo atendieron">
-                      <UserCheck size={14} aria-hidden="true" />
-                      {attending ? "Marcando…" : "Marcar atendido"}
-                    </button>
+                    <AttendButton
+                      leadId={data.lead.id}
+                      onDone={() => {
+                        onToast("Marcado como atendido");
+                        onAttended();
+                        refresh();
+                      }}
+                      onError={() => onToast("No se pudo marcar. Probá de nuevo.")}
+                    />
                   )}
                 </div>
                 {data.lead.requiere_humano && !data.lead.atendido_at && (

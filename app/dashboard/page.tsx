@@ -68,7 +68,7 @@ function useVisible(): boolean {
 type PanelTab = "resumen" | "embudo" | "leads";
 
 const TABS: Array<{ key: PanelTab; label: string; icon: typeof LayoutGrid }> = [
-  { key: "resumen", label: "Resumen", icon: LayoutGrid },
+  { key: "resumen", label: "General", icon: LayoutGrid },
   { key: "embudo", label: "Resumen de consultas", icon: BarChart3 },
   { key: "leads", label: "Leads", icon: Users },
 ];

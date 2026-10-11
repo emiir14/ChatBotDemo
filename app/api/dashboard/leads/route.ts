@@ -55,11 +55,11 @@ export async function GET(req: Request): Promise<NextResponse> {
     }
   }
 
-  // Cola de acción: los que más esperan primero; tabla: recientes primero.
+  // Cola de acción: los más recientes primero (los últimos 5).
   if (onlyAction === "true") {
     query = query.order("last_customer_message_at", {
-      ascending: true,
-      nullsFirst: false,
+      ascending: false,
+      nullsFirst: true,
     });
   } else {
     query = query

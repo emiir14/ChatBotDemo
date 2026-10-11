@@ -169,7 +169,8 @@ export default function DashboardPage(): JSX.Element {
     refreshAll();
   }
 
-  const queueItems = useMemo(() => queue?.items ?? [], [queue]);
+  const queueItems = useMemo(() => (queue?.items ?? []).slice(0, 5), [queue]);
+  const queueTotal = queue?.total ?? 0;
   const m = summary?.metrics;
 
   return (
@@ -408,6 +409,11 @@ export default function DashboardPage(): JSX.Element {
                 ))}
               </AnimatePresence>
             </ul>
+          )}
+          {queueTotal > queueItems.length && queueItems.length > 0 && (
+            <p className="tnum mt-2 text-xs text-(--ink-2)">
+              Mostrando los 5 más recientes · {queueTotal} en espera
+            </p>
           )}
         </section>
 

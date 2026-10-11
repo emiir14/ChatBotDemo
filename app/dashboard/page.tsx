@@ -226,9 +226,52 @@ export default function DashboardPage(): JSX.Element {
               El stock lleva {Math.floor(summary.stock.daysSinceUpdate ?? 0)} días sin actualizarse.
               El bot ya avisa a los clientes que la disponibilidad puede haber cambiado.
             </p>
-            <a href="/dashboard/stock" className="btn btn-ghost btn-sm sm:ml-auto">
-              Actualizar stock
-            </a>
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+              <form
+                className="flex items-center gap-1.5"
+                title="Cambiar a los cuántos días se muestra esta alerta"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const input = (e.currentTarget.elements.namedItem("days") as HTMLInputElement | null);
+                  const days = Number(input?.value);
+                  if (!Number.isInteger(days) || days < 1 || days > 30) {
+                    pushToast("Umbral inválido (1 a 30 días)");
+                    return;
+                  }
+                  fetch("/api/dashboard/stock/meta", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ stale_days: days }),
+                  }).then((r) => {
+                    if (!r.ok) throw new Error();
+                    pushToast("Umbral actualizado");
+                    mutateSummary();
+                  }).catch(() => pushToast("No se pudo guardar"));
+                }}
+              >
+                <label htmlFor="stale-days-main" className="whitespace-nowrap text-xs text-(--ink-2)">
+                  Avisar a los
+                </label>
+                <input
+                  id="stale-days-main"
+                  name="days"
+                  type="number"
+                  min={1}
+                  max={30}
+                  defaultValue={summary.stock.staleDays}
+                  className="input tnum w-20"
+                  style={{ minHeight: 36 }}
+                  aria-label="Días sin actualizar para alertar"
+                />
+                <span className="text-xs text-(--ink-2)">días</span>
+                <button type="submit" className="btn btn-ghost btn-sm">
+                  Guardar
+                </button>
+              </form>
+              <a href="/dashboard/stock" className="btn btn-ghost btn-sm">
+                Actualizar stock
+              </a>
+            </div>
           </motion.div>
         )}
 

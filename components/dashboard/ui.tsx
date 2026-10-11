@@ -1,8 +1,8 @@
 "use client";
 
 import type { JSX } from "react";
-import { Flame, Info, Snowflake, Thermometer, TrendingDown, TrendingUp, Minus } from "lucide-react";
-import type { Temperatura, Variation } from "./types";
+import { Flame, Snowflake, Thermometer } from "lucide-react";
+import type { Temperatura } from "./types";
 
 /** Badge de temperatura: color + ícono + texto (nunca solo color). */
 export function TempBadge({ value }: { value: Temperatura | null }): JSX.Element {
@@ -30,23 +30,6 @@ export function TempBadge({ value }: { value: Temperatura | null }): JSX.Element
   return <span className="badge badge-neutral" title="El bot todavía no lo clasificó">Sin clasificar</span>;
 }
 
-/** Variación vs período anterior (flecha + texto; "sin datos previos"). */
-export function VariationLabel({ variation }: { variation: Variation | null }): JSX.Element {
-  if (!variation) {
-    return <span className="text-xs text-(--ink-3)">sin datos previos</span>;
-  }
-  const Icon = variation.pct === 0 ? Minus : variation.up ? TrendingUp : TrendingDown;
-  const cls = variation.pct === 0 ? "text-(--ink-3)" : variation.up ? "text-(--ok)" : "text-(--danger)";
-  const sign = variation.pct > 0 ? "+" : "";
-  return (
-    <span className={`inline-flex items-center gap-1 text-xs font-semibold ${cls}`}>
-      <Icon size={13} aria-hidden="true" />
-      {sign}
-      {Math.round(variation.pct)}% vs anterior
-    </span>
-  );
-}
-
 /** Título de sección con pregunta de negocio. */
 export function SectionTitle({
   title,
@@ -60,16 +43,6 @@ export function SectionTitle({
       <h2 className="text-base font-bold tracking-tight">{title}</h2>
       {hint && <p className="text-sm text-(--ink-2)">{hint}</p>}
     </div>
-  );
-}
-
-/** Tooltip "Cómo se calcula" con definición exacta. */
-export function HowCalculated({ text }: { text: string }): JSX.Element {
-  return (
-    <span className="inline-flex items-center gap-1 text-xs text-(--ink-3)" title={text}>
-      <Info size={12} aria-hidden="true" />
-      Cómo se calcula
-    </span>
   );
 }
 

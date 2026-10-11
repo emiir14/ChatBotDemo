@@ -256,49 +256,45 @@ export default function DashboardPage(): JSX.Element {
               <KpiCard
                 icon={<Zap size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
                 label="Hoy" value={m.hoy.value} format={(n) => String(Math.round(n))}
-                sub="consultas" how="Leads que escribieron hoy (hora de Córdoba)." delay={0}
+                sub="consultas" delay={0}
               />
               <KpiCard
                 icon={<MessageSquareText size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
                 label="Atendidas" value={m.atendidas.value} format={(n) => String(Math.round(n))}
-                variation={m.atendidas.variation} spark={summary.daily}
-                how="Leads con al menos una respuesta del bot en el período." delay={0.03}
+                spark={summary.daily} delay={0.03}
               />
               <KpiCard
                 icon={<UserCheck size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="En espera" value={summary.actionCount} format={(n) => String(Math.round(n))}
-                sub="esperan asesor" how="Leads que pidieron humano y todavía no fueron marcados como atendidos." delay={0.06}
+                sub="esperan asesor" delay={0.06}
               />
               <KpiCard
                 icon={<Flame size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="Calientes" value={m.calientes.value} format={(n) => String(Math.round(n))}
-                how="Modelo + pago + compra <30 días, o pidió visita, prueba o reserva." delay={0.09}
+                delay={0.09}
               />
               <KpiCard
                 icon={<PhoneForwarded size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="Derivados" value={m.derivados.value} format={(n) => String(Math.round(n))}
-                variation={m.derivados.variation} sub="al asesor"
-                how="Leads que pidieron humano o mostraron intención de cierre." delay={0.12}
+                sub="al asesor" delay={0.12}
               />
               <KpiCard
                 icon={<MoonStar size={16} className="text-indigo-700 dark:text-indigo-300" />} tint="var(--cold-soft)"
                 label="Fuera de hora" value={m.fueraHorario.value} format={(n) => String(Math.round(n))}
-                variation={m.fueraHorario.variation} tone="green"
-                how="Atendidas fuera del horario comercial (lun-vie 9-18, sáb 9-13)." delay={0.15}
+                tone="green" delay={0.15}
               />
               <KpiCard
                 icon={<Timer size={16} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
                 label="1ra respuesta" value={m.primeraRespuestaSeg.value ?? 0}
                 format={(n) => (m.primeraRespuestaSeg.value === null ? "—" : formatDurationShort(n))}
-                sub={summary.site.humanReplyReference}
-                how="Mediana entre el primer mensaje del cliente y la primera respuesta del bot." delay={0.18}
+                sub={summary.site.humanReplyReference} delay={0.18}
               />
               <KpiCard
                 icon={<Gauge size={16} className="text-(--warm)" />} tint="var(--warm-soft)"
                 label="Tasa derivación"
                 value={m.atendidas.value > 0 ? (m.derivados.value / m.atendidas.value) * 100 : 0}
                 format={(n) => `${Math.round(n)}%`}
-                how="% de atendidas que terminaron derivadas al asesor." delay={0.21}
+                delay={0.21}
               />
             </div>
           )}
@@ -345,7 +341,7 @@ export default function DashboardPage(): JSX.Element {
                         esperando {timeAgo(l.last_customer_message_at ?? l.created_at)}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button className="btn btn-primary btn-sm flex-1 sm:flex-none" onClick={() => setOpenLeadId(l.id)} title="Abrir la conversación completa">
                         Abrir
                       </button>

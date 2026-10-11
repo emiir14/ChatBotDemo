@@ -105,7 +105,7 @@ export default function EmbudoPage(): JSX.Element {
                     {grouped[c.key].length}
                   </span>
                 </header>
-                <ul className="no-scrollbar flex max-h-[52vh] flex-col gap-1.5 overflow-y-auto pr-0.5 lg:max-h-[62vh]">
+                <ul className="flex max-h-[52vh] flex-col gap-1.5 overflow-y-auto pr-1 lg:max-h-[62vh]">
                   {grouped[c.key].map((l, i) => (
                     <motion.li
                       key={l.id}
@@ -135,6 +135,9 @@ export default function EmbudoPage(): JSX.Element {
                   ))}
                   {grouped[c.key].length === 0 && (
                     <li className="px-2 py-4 text-center text-xs text-(--ink-3)">Vacío</li>
+                  )}
+                  {grouped[c.key].length > 4 && (
+                    <li aria-hidden="true" className="sticky bottom-0 -mb-1 h-5 bg-gradient-to-b from-transparent to-[var(--surface-3)]" />
                   )}
                 </ul>
               </section>

@@ -2,12 +2,9 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState, type JSX, type ReactNode } from "react";
-import { Minus, TrendingDown, TrendingUp } from "lucide-react";
-import { HowCalculated } from "./ui";
 import { Sparkline } from "./panels";
 import { timeAgo } from "@/lib/format";
 import type { ActivityItem } from "@/lib/activity";
-import type { Variation } from "./types";
 
 /** Número que cuenta hacia arriba al aparecer (respeta reduced-motion). */
 export function CountUp({ value, format }: { value: number; format: (n: number) => string }): JSX.Element {
@@ -48,45 +45,21 @@ export function FadeIn({ children, delay = 0, className }: { children: ReactNode
   );
 }
 
-/** Píldora de variación estilo Kommo (fondo tintado, no solo color). */
-export function DeltaPill({ variation, invert = false }: { variation: Variation | null; invert?: boolean }): JSX.Element {
-  if (!variation) return <span className="text-[0.72rem] text-(--ink-3)">sin datos previos</span>;
-  const good = variation.pct === 0 ? null : invert ? !variation.up : variation.up;
-  const Icon = variation.pct === 0 ? Minus : variation.up ? TrendingUp : TrendingDown;
-  const cls =
-    good === null
-      ? "bg-(--surface-3) text-(--ink-2)"
-      : good
-        ? "bg-(--accent-soft) text-(--accent-strong) dark:text-(--accent)"
-        : "bg-red-500/10 text-(--danger)";
-  const sign = variation.pct > 0 ? "+" : "";
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.72rem] font-bold ${cls}`}>
-      <Icon size={12} aria-hidden="true" />
-      {sign}
-      {Math.round(variation.pct)}%
-    </span>
-  );
-}
-
 interface KpiProps {
   icon: ReactNode;
   tint: string;
   label: string;
   value: number;
   format: (n: number) => string;
-  variation?: Variation | null;
-  invert?: boolean;
   sub?: string;
-  how: string;
   spark?: Array<{ day: string; n: number }>;
   delay?: number;
   /** Tono del número (default: tinta). */
   tone?: "ink" | "green";
 }
 
-/** Tarjeta KPI premium: chip de ícono, número animado, delta, sparkline. */
-export function KpiCard({ icon, tint, label, value, format, variation, invert, sub, how, spark, delay = 0, tone = "ink" }: KpiProps): JSX.Element {
+/** Tarjeta KPI: chip de ícono, número animado y sparkline. */
+export function KpiCard({ icon, tint, label, value, format, sub, spark, delay = 0, tone = "ink" }: KpiProps): JSX.Element {
   return (
     <FadeIn delay={delay}>
       <div className="card flex h-full flex-col gap-1 p-4">
@@ -99,12 +72,8 @@ export function KpiCard({ icon, tint, label, value, format, variation, invert, s
         <p className={`text-[1.7rem] font-bold leading-none tracking-tight ${tone === "green" ? "text-(--ok)" : ""}`} title={`${label}: ${format(value)}`}>
           <CountUp value={value} format={format} />
         </p>
-        <div className="flex items-center gap-2">
-          {variation !== undefined && <DeltaPill variation={variation ?? null} invert={invert} />}
-          {sub && <span className="text-[0.72rem] text-(--ink-2)">{sub}</span>}
-        </div>
+        {sub && <span className="text-[0.72rem] text-(--ink-2)">{sub}</span>}
         {spark && spark.length > 1 && <Sparkline data={spark} />}
-        <HowCalculated text={how} />
       </div>
     </FadeIn>
   );

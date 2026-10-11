@@ -258,7 +258,7 @@ export function LeadDrawer({
 
               <div className="flex flex-col gap-2">
                 <RecontactBox lead={data.lead} onSent={refresh} onToast={onToast} />
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <a
                     className="btn btn-ghost btn-sm flex-1"
                     href={waLink}

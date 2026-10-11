@@ -156,7 +156,7 @@ export function Shell({
       <div className="min-w-0 flex-1 pb-24 lg:pb-0">
         {/* Topbar */}
         <header className="sticky top-0 z-30 border-b border-(--line) bg-(--surface)/95 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2.5">
             <div className="flex items-center gap-2 lg:hidden">
               <Logo size={30} />
               <p className="max-w-[40vw] truncate text-[0.95rem] font-bold">{siteName}</p>
@@ -189,7 +189,7 @@ export function Shell({
             )}
             {demoMode && onReset && (
               confirmingReset ? (
-                <span className="flex items-center gap-1.5 rounded-lg border border-(--danger) px-2 py-1 text-xs font-bold">
+                <span className="flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border border-(--danger) px-2 py-1 text-xs font-bold">
                   ¿Vaciar {resetCount ?? ""} leads?
                   <button
                     className="min-h-[32px] rounded-md bg-(--danger) px-2.5 text-white"

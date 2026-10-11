@@ -47,7 +47,7 @@ export function AttendButton({
   return (
     <span className="flex flex-1 items-center gap-1.5 sm:flex-none">
       <input
-        className="input"
+        className="input min-w-0 flex-1"
         style={{ minHeight: 36 }}
         placeholder="¿Quién atendió?"
         aria-label="Nombre de quien atendió"

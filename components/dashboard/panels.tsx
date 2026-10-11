@@ -191,8 +191,8 @@ export function ModelsVsStock({
         {rows.map((r) => (
           <li key={r.modelo}>
             <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-              <span className="font-semibold">{r.modelo}</span>
-              <span className="tnum text-xs text-(--ink-2)">
+              <span className="min-w-0 truncate font-semibold">{r.modelo}</span>
+              <span className="tnum shrink-0 text-xs text-(--ink-2)">
                 {r.consultas} consultas · {r.stock} en stock
               </span>
             </div>

@@ -22,14 +22,14 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { Shell, type Period } from "@/components/dashboard/Header";
+import { Shell, type CustomRange, type Period } from "@/components/dashboard/Header";
 import { AttendButton } from "@/components/dashboard/AttendButton";
 import { SelfSend } from "@/components/dashboard/SelfSend";
 import { ErrorBox, MetricSkeleton } from "@/components/dashboard/ui";
 import { Funnel, Heatmap, Insights, ModelsVsStock } from "@/components/dashboard/panels";
 import { ActivityFeed, KpiCard, SectionHead } from "@/components/dashboard/motion";
 import { LeadsTable, type LeadFilters } from "@/components/dashboard/LeadsTable";
-import { formatDurationShort } from "@/lib/metrics";
+import { customDayBounds, formatDurationShort } from "@/lib/metrics";
 import type { ActivityItem } from "@/lib/activity";
 import { formatPhone, timeAgo } from "@/lib/format";
 import type { LeadRow, LeadsResponse, StatusResponse, SummaryResponse } from "@/components/dashboard/types";
@@ -74,7 +74,8 @@ const TABS: Array<{ key: PanelTab; label: string; icon: typeof LayoutGrid }> = [
 ];
 
 export default function DashboardPage(): JSX.Element {
-  const [period, setPeriod] = useState<Period>("7d");
+  const [period, setPeriod] = useState<Period>("today");
+  const [custom, setCustom] = useState<CustomRange | null>(null);
   const [tab, setTab] = useState<PanelTab>("resumen");
   const [filters, setFilters] = useState<LeadFilters>({ temperatura: "all", estado: "all", q: "", page: 1 });
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
@@ -96,9 +97,15 @@ export default function DashboardPage(): JSX.Element {
     revalidateOnFocus: false,
   });
 
-  const summaryKey = `/api/dashboard/summary?period=${period}`;
+  const summaryParams = new URLSearchParams({ period });
+  if (period === "custom" && custom) {
+    const bounds = customDayBounds(custom.from, custom.to);
+    summaryParams.set("from", bounds.from.toISOString());
+    summaryParams.set("to", bounds.to.toISOString());
+  }
+  const summaryKey = `/api/dashboard/summary?${summaryParams}`;
   const { data: summary, error: summaryError, mutate: mutateSummary } =
-    useSWR<SummaryResponse>(summaryKey, json, { revalidateOnFocus: false });
+    useSWR<SummaryResponse>(period === "custom" && !custom ? null : summaryKey, json, { revalidateOnFocus: false });
 
   const leadsParams = new URLSearchParams({
     temperatura: filters.temperatura,
@@ -178,7 +185,19 @@ export default function DashboardPage(): JSX.Element {
       siteName={summary?.site.name ?? "Panel"}
       hasDemoData={summary?.hasDemoData ?? false}
       period={period}
-      onPeriod={setPeriod}
+      onPeriod={(p) => {
+        setPeriod(p);
+        if (p !== "custom") setCustom(null);
+      }}
+      custom={period === "custom" ? custom : null}
+      onCustom={(from, to) => {
+        setCustom({ from, to });
+        setPeriod("custom");
+      }}
+      onClearCustom={() => {
+        setCustom(null);
+        setPeriod("7d");
+      }}
       demoMode={summary?.demoMode ?? false}
       resetCount={status?.leadsTotal ?? 0}
       onReset={resetPanel}
@@ -296,8 +315,8 @@ export default function DashboardPage(): JSX.Element {
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <KpiCard
                 icon={<Zap size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
-                label="Hoy" value={m.hoy.value} format={(n) => String(Math.round(n))}
-                sub="consultas" delay={0}
+                label="Consultas" value={m.consultas.value} format={(n) => String(Math.round(n))}
+                sub={summary.periodLabel} delay={0}
               />
               <KpiCard
                 icon={<MessageSquareText size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"

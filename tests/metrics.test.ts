@@ -3,9 +3,12 @@ import { buildActivity } from "@/lib/activity";
 import {
   buildFunnel,
   buildInsights,
+  customDayBounds,
   median,
+  periodLabel,
   periodRange,
   previousRange,
+  resolveRange,
   startOfCordobaDay,
   variation,
 } from "@/lib/metrics";
@@ -48,6 +51,28 @@ describe("periodRange + previousRange", () => {
     const now = new Date("2026-10-07T15:00:00Z"); // 12:00 ART
     const cur = periodRange("today", now);
     expect(cur.from.toISOString()).toBe("2026-10-07T03:00:00.000Z");
+  });
+});
+
+describe("resolveRange + periodLabel + customDayBounds", () => {
+  it("custom incluye el día hasta completo en hora Córdoba", () => {
+    const b = customDayBounds("2026-10-01", "2026-10-05");
+    expect(b.from.toISOString()).toBe("2026-10-01T03:00:00.000Z");
+    expect(b.to.toISOString()).toBe("2026-10-06T03:00:00.000Z");
+    const r = resolveRange({ key: "custom", from: b.from, to: b.to });
+    expect(r.ms).toBe(5 * 24 * 60 * 60 * 1000);
+  });
+  it("etiquetas por preset y personalizado", () => {
+    expect(periodLabel("today")).toBe("hoy");
+    expect(periodLabel("7d")).toBe("últimos 7 días");
+    expect(periodLabel("30d")).toBe("últimos 30 días");
+    expect(periodLabel("all")).toBe("todo el historial");
+    const b = customDayBounds("2026-10-01", "2026-10-05");
+    expect(periodLabel({ key: "custom", from: b.from, to: b.to })).toContain("–");
+  });
+  it("all arranca en 2020", () => {
+    const r = resolveRange("all", new Date("2026-10-07T12:00:00Z"));
+    expect(r.from.toISOString()).toBe("2020-01-01T00:00:00.000Z");
   });
 });
 

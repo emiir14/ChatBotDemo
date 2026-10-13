@@ -3,25 +3,19 @@
 export type Temperatura = "caliente" | "tibio" | "frio";
 export type LeadEstado = "nuevo" | "en_conversacion" | "derivado" | "recontactado";
 
-export interface Variation {
-  pct: number;
-  up: boolean;
-}
-
 export interface SummaryResponse {
   period: string;
+  periodLabel: string;
   site: { name: string; humanReplyReference: string };
   hasDemoData: boolean;
   demoMode: boolean;
   metrics: {
-    hoy: { value: number };
-    atendidas: { value: number; variation: Variation | null };
-    primeraRespuestaSeg: { value: number | null; variation: null };
-    fueraHorario: { value: number; variation: Variation | null };
-    calientes: { value: number; variation: Variation | null };
-    tasaCalificacion: { value: number; variation: null };
-    mensajes: { value: number };
-    derivados: { value: number; variation: Variation | null };
+    consultas: { value: number };
+    atendidas: { value: number };
+    primeraRespuestaSeg: { value: number | null };
+    fueraHorario: { value: number };
+    calientes: { value: number };
+    derivados: { value: number };
   };
   funnel: Array<{
     key: string;

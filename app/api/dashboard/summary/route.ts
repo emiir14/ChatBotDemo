@@ -8,14 +8,32 @@ import {
   buildInsights,
   diaNombre,
   median,
-  periodRange,
-  previousRange,
-  variation,
-  type PeriodKey,
+  periodLabel,
+  resolveRange,
+  type PeriodSpec,
 } from "@/lib/metrics";
 
+const MAX_CUSTOM_MS = 400 * 24 * 60 * 60 * 1000; // tope anti-abuso
+
 const querySchema = z.object({
-  period: z.enum(["today", "7d", "30d"]).default("7d"),
+  period: z.enum(["today", "7d", "30d", "all", "custom"]).default("today"),
+  from: z.string().optional(),
+  to: z.string().optional(),
+}).superRefine((q, ctx) => {
+  if (q.period !== "custom") return;
+  const from = q.from ? new Date(q.from) : null;
+  const to = q.to ? new Date(q.to) : null;
+  if (!from || Number.isNaN(from.getTime()) || !to || Number.isNaN(to.getTime())) {
+    ctx.addIssue({ code: "custom", message: "Rango inválido (from/to ISO)" });
+    return;
+  }
+  if (from.getTime() >= to.getTime()) {
+    ctx.addIssue({ code: "custom", message: "from debe ser anterior a to" });
+    return;
+  }
+  if (to.getTime() - from.getTime() > MAX_CUSTOM_MS) {
+    ctx.addIssue({ code: "custom", message: "Rango máximo: 400 días" });
+  }
 });
 
 interface SummaryJson {
@@ -43,7 +61,7 @@ interface ModelRow {
 }
 
 /**
- * GET /api/dashboard/summary?period=today|7d|30d
+ * GET /api/dashboard/summary?period=today|7d|30d|all|custom&from=ISO&to=ISO
  * Agregados del período + período anterior (para variación), mapa de calor,
  * modelos vs stock e insights por reglas. Lo pesado se calcula en SQL.
  */
@@ -51,23 +69,24 @@ export async function GET(req: Request): Promise<NextResponse> {
   const url = new URL(req.url);
   const parsed = querySchema.safeParse({
     period: url.searchParams.get("period") ?? undefined,
+    from: url.searchParams.get("from") ?? undefined,
+    to: url.searchParams.get("to") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Período inválido" }, { status: 400 });
   }
-  const period = parsed.data.period as PeriodKey;
+  const spec: PeriodSpec =
+    parsed.data.period === "custom"
+      ? { key: "custom", from: new Date(parsed.data.from as string), to: new Date(parsed.data.to as string) }
+      : parsed.data.period;
   const site = getSiteConfig();
   const supabase = getSupabaseAdmin();
 
-  const cur = periodRange(period);
-  const prev = previousRange(cur);
-  const today = periodRange("today");
+  const cur = resolveRange(spec);
   const iso = (d: Date): string => d.toISOString();
 
-  const [curRes, prevRes, todayRes, heatRes, dailyRes, modelsRes, stockRes, stockSettingsRes] = await Promise.all([
+  const [curRes, heatRes, dailyRes, modelsRes, stockRes, stockSettingsRes] = await Promise.all([
     supabase.rpc("dashboard_summary", { p_from: iso(cur.from), p_to: iso(cur.to) }),
-    supabase.rpc("dashboard_summary", { p_from: iso(prev.from), p_to: iso(prev.to) }),
-    supabase.rpc("dashboard_summary", { p_from: iso(today.from), p_to: iso(today.to) }),
     supabase.rpc("dashboard_heatmap", { p_from: iso(cur.from), p_to: iso(cur.to) }),
     supabase.rpc("dashboard_daily", { p_from: iso(cur.from), p_to: iso(cur.to) }),
     supabase.rpc("dashboard_models", { p_from: iso(cur.from), p_to: iso(cur.to) }),
@@ -75,16 +94,14 @@ export async function GET(req: Request): Promise<NextResponse> {
     supabase.from("stock_settings").select("updated_at,stale_days").eq("id", 1).maybeSingle(),
   ]);
 
-  if (curRes.error || prevRes.error) {
+  if (curRes.error) {
     return NextResponse.json(
-      { error: `No se pudo calcular el resumen: ${curRes.error?.message ?? prevRes.error?.message}` },
+      { error: `No se pudo calcular el resumen: ${curRes.error?.message}` },
       { status: 500 },
     );
   }
 
   const curJson = curRes.data as SummaryJson;
-  const prevJson = prevRes.data as SummaryJson;
-  const todayJson = (todayRes.data ?? {}) as Partial<SummaryJson>;
   const cells = (heatRes.data ?? []) as HeatCell[];
   const daily = ((dailyRes.data ?? []) as Array<{ day: string; n: number }>).map(
     (d) => ({ day: d.day, n: Number(d.n) }),
@@ -142,22 +159,18 @@ export async function GET(req: Request): Promise<NextResponse> {
     : null;
 
   return NextResponse.json({
-    period,
+    period: parsed.data.period,
+    periodLabel: periodLabel(spec),
     site: { name: site.name, humanReplyReference: site.humanReplyReferenceLabel },
     hasDemoData: curJson.demo_count > 0,
     demoMode: isDemoMode(getEnv()),
     metrics: {
-      hoy: { value: todayJson.consultas ?? 0 },
-      atendidas: { value: curJson.atendidas, variation: variation(curJson.atendidas, prevJson.atendidas) },
-      primeraRespuestaSeg: { value: mediana, variation: null },
-      fueraHorario: { value: curJson.fuera_horario, variation: variation(curJson.fuera_horario, prevJson.fuera_horario) },
-      calientes: { value: curJson.calientes, variation: variation(curJson.calientes, prevJson.calientes) },
-      tasaCalificacion: {
-        value: curJson.consultas > 0 ? (curJson.calificados / curJson.consultas) * 100 : 0,
-        variation: null,
-      },
-      mensajes: { value: curJson.mensajes ?? 0 },
-      derivados: { value: curJson.derivados, variation: variation(curJson.derivados, prevJson.derivados) },
+      consultas: { value: curJson.consultas },
+      atendidas: { value: curJson.atendidas },
+      primeraRespuestaSeg: { value: mediana },
+      fueraHorario: { value: curJson.fuera_horario },
+      calientes: { value: curJson.calientes },
+      derivados: { value: curJson.derivados },
     },
     funnel,
     heatmap: cells,

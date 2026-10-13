@@ -1,16 +1,22 @@
 "use client";
 
-import { BarChart3, Boxes, LayoutDashboard, LogOut, Moon, Percent, Sun, Trash2 } from "lucide-react";
+import { BarChart3, Boxes, CalendarDays, LayoutDashboard, LogOut, Moon, Percent, Sun, Trash2, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type JSX, type ReactNode } from "react";
 import type { PeriodKey } from "@/lib/metrics";
 
-export type Period = PeriodKey;
+export type Period = PeriodKey | "custom";
 
-const PERIODS: Array<{ key: Period; label: string }> = [
+export interface CustomRange {
+  from: string;
+  to: string;
+}
+
+const PERIODS: Array<{ key: PeriodKey; label: string }> = [
   { key: "today", label: "Hoy" },
   { key: "7d", label: "7 días" },
   { key: "30d", label: "30 días" },
+  { key: "all", label: "Todo" },
 ];
 
 const NAV = [
@@ -38,6 +44,71 @@ function Logo({ size = 34 }: { size?: number }): JSX.Element {
 }
 
 /**
+ * Botón de rango personalizado: abre un panel con desde/hasta (inputs de
+ * fecha nativos, aptos para móvil) y aplica. Máximo 400 días.
+ */
+function CustomButton({
+  active,
+  onCustom,
+}: {
+  active: boolean;
+  onCustom: (from: string, to: string) => void;
+}): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function apply(): void {
+    if (!from || !to) {
+      setError("Elegí desde y hasta");
+      return;
+    }
+    if (from >= to) {
+      setError("Desde debe ser anterior a hasta");
+      return;
+    }
+    onCustom(from, to);
+    setOpen(false);
+    setError(null);
+  }
+
+  return (
+    <span className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-pressed={active}
+        aria-expanded={open}
+        title="Elegir un rango de fechas"
+        className={`flex min-h-[36px] items-center px-2.5 transition-colors ${
+          active ? "bg-(--accent) text-(--accent-ink)" : "text-(--ink-2)"
+        }`}
+      >
+        <CalendarDays size={15} aria-hidden="true" />
+      </button>
+      {open && (
+        <span className="absolute right-0 top-10 z-50 flex w-56 flex-col gap-2 rounded-xl border border-(--line) bg-(--surface-2) p-3 shadow-xl">
+          <label className="flex flex-col gap-1 text-xs font-bold">
+            Desde
+            <input type="date" className="input" style={{ minHeight: 36 }} value={from} max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-bold">
+            Hasta
+            <input type="date" className="input" style={{ minHeight: 36 }} value={to} min={from || undefined}
+              onChange={(e) => setTo(e.target.value)} />
+          </label>
+          {error && <span role="alert" className="text-xs font-semibold text-(--danger)">{error}</span>}
+          <button className="btn btn-primary btn-sm" onClick={apply}>
+            Aplicar
+          </button>
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
  * Shell del panel estilo CRM (Kommo/Interakt): sidebar oscuro en escritorio,
  * barra superior compacta + tabs inferiores en móvil.
  */
@@ -46,6 +117,9 @@ export function Shell({
   hasDemoData,
   period,
   onPeriod,
+  custom,
+  onCustom,
+  onClearCustom,
   children,
   demoMode,
   resetCount,
@@ -56,6 +130,10 @@ export function Shell({
   hasDemoData: boolean;
   period?: Period;
   onPeriod?: (p: Period) => void;
+  /** Rango personalizado activo (muestra chip con opción de quitar). */
+  custom?: CustomRange | null;
+  onCustom?: (from: string, to: string) => void;
+  onClearCustom?: () => void;
   children: ReactNode;
   /** Botón "Vaciar panel" (solo demo): se muestra si viene onReset. */
   demoMode?: boolean;
@@ -173,20 +251,36 @@ export function Shell({
               <span className="badge badge-neutral">Datos de demostración</span>
             )}
             {period && onPeriod && (
-              <div role="group" aria-label="Período" className="flex overflow-hidden rounded-lg border border-(--line)">
-                {PERIODS.map((p) => (
-                  <button
-                    key={p.key}
-                    onClick={() => onPeriod(p.key)}
-                    aria-pressed={period === p.key}
-                    className={`min-h-[36px] px-2.5 text-[0.83rem] font-semibold transition-colors sm:px-3 sm:text-sm ${
-                      period === p.key ? "bg-(--accent) text-(--accent-ink)" : "text-(--ink-2)"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div role="group" aria-label="Período" className="flex overflow-hidden rounded-lg border border-(--line)">
+                  {PERIODS.map((p) => (
+                    <button
+                      key={p.key}
+                      onClick={() => onPeriod(p.key)}
+                      aria-pressed={period === p.key}
+                      title={p.key === "all" ? "Todo el historial" : `Ver ${p.label.toLowerCase()}`}
+                      className={`min-h-[36px] px-2.5 text-[0.83rem] font-semibold transition-colors sm:px-3 sm:text-sm ${
+                        period === p.key ? "bg-(--accent) text-(--accent-ink)" : "text-(--ink-2)"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  {onCustom && (
+                    <CustomButton active={period === "custom"} onCustom={onCustom} />
+                  )}
+                </div>
+                {period === "custom" && custom && (
+                  <span className="badge badge-accent" title="Rango personalizado activo">
+                    {custom.from} – {custom.to}
+                    {onClearCustom && (
+                      <button onClick={onClearCustom} aria-label="Quitar rango personalizado" className="ml-1 font-bold">
+                        <X size={12} aria-hidden="true" />
+                      </button>
+                    )}
+                  </span>
+                )}
+              </>
             )}
             {demoMode && onReset && (
               confirmingReset ? (

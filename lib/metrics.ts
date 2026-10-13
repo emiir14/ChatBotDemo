@@ -42,7 +42,7 @@ export function variation(
 // ---------------------------------------------------------------------------
 // Rangos de período en hora de Córdoba (el servidor corre en UTC)
 // ---------------------------------------------------------------------------
-export type PeriodKey = "today" | "7d" | "30d";
+export type PeriodKey = "today" | "7d" | "30d" | "all";
 
 export interface PeriodRange {
   from: Date;
@@ -50,6 +50,15 @@ export interface PeriodRange {
   /** Duración en ms (para calcular el período anterior equivalente). */
   ms: number;
 }
+
+/** Rango personalizado (fechas ya validadas). */
+export interface CustomSpec {
+  key: "custom";
+  from: Date;
+  to: Date;
+}
+
+export type PeriodSpec = PeriodKey | CustomSpec;
 
 function cordobaParts(d: Date): { y: number; mo: number; day: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -69,15 +78,55 @@ export function startOfCordobaDay(d: Date = new Date()): Date {
   return new Date(Date.UTC(y, mo - 1, day, 3, 0, 0, 0));
 }
 
+/**
+ * Rango personalizado desde fechas de calendario (AAAA-MM-DD): incluye el
+ * día "hasta" completo en hora de Córdoba. Puro y testeable.
+ */
+export function customDayBounds(from: string, to: string): { from: Date; to: Date } {
+  const [fy, fmo, fd] = from.split("-").map(Number);
+  const [ty, tmo, td] = to.split("-").map(Number);
+  return {
+    from: new Date(Date.UTC(fy, fmo - 1, fd, 3, 0, 0, 0)),
+    to: new Date(Date.UTC(ty, tmo - 1, td + 1, 3, 0, 0, 0)),
+  };
+}
+
 export function periodRange(period: PeriodKey, now: Date = new Date()): PeriodRange {
   if (period === "today") {
     const from = startOfCordobaDay(now);
+    return { from, to: now, ms: Math.max(1, now.getTime() - from.getTime()) };
+  }
+  if (period === "all") {
+    // Histórico completo (desde 2020; la app no tiene datos anteriores).
+    const from = new Date(Date.UTC(2020, 0, 1));
     return { from, to: now, ms: now.getTime() - from.getTime() };
   }
   const days = period === "7d" ? 7 : 30;
   const to = now;
   const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   return { from, to, ms: days * 24 * 60 * 60 * 1000 };
+}
+
+/** Resuelve cualquier especificación (preset o personalizado) a un rango. */
+export function resolveRange(spec: PeriodSpec, now: Date = new Date()): PeriodRange {
+  if (typeof spec === "object") {
+    const ms = spec.to.getTime() - spec.from.getTime();
+    return { from: spec.from, to: spec.to, ms };
+  }
+  return periodRange(spec, now);
+}
+
+/** Etiqueta corta del período para la tarjeta Consultas. */
+export function periodLabel(spec: PeriodSpec): string {
+  if (typeof spec === "object") {
+    const fmt = (d: Date): string =>
+      new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", timeZone: BUSINESS_TIME_ZONE }).format(d);
+    return `${fmt(spec.from)} – ${fmt(spec.to)}`;
+  }
+  if (spec === "today") return "hoy";
+  if (spec === "7d") return "últimos 7 días";
+  if (spec === "30d") return "últimos 30 días";
+  return "todo el historial";
 }
 
 export function previousRange(range: PeriodRange): PeriodRange {

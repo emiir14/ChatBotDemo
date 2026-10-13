@@ -266,10 +266,10 @@ export function Shell({
                       {p.label}
                     </button>
                   ))}
-                  {onCustom && (
-                    <CustomButton active={period === "custom"} onCustom={onCustom} />
-                  )}
                 </div>
+                {onCustom && (
+                  <CustomButton active={period === "custom"} onCustom={onCustom} />
+                )}
                 {period === "custom" && custom && (
                   <span className="badge badge-accent" title="Rango personalizado activo">
                     {custom.from} – {custom.to}

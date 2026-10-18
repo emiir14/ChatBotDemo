@@ -33,6 +33,14 @@ export function timeAgo(iso: string | null | undefined, now: Date = new Date()):
   }).format(new Date(t));
 }
 
+/** Días transcurridos desde una fecha ISO (para detectar stock desactualizado). */
+export function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  return (Date.now() - t) / 86400000;
+}
+
 /** Hora corta en Córdoba: "14:35". */
 export function formatHourCordoba(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -56,4 +64,16 @@ export function formatMoney(price: number, moneda: string): string {
     currency: "ARS",
     maximumFractionDigits: 0,
   }).format(price);
+}
+
+/**
+ * Separa colores cargados como texto libre ("Blanco, Negro / Gris") en una
+ * lista limpia. Un auto puede tener varios colores (típico en 0km).
+ */
+export function splitColors(value: string | null | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(/[,;/|]+/)
+    .map((c) => c.trim())
+    .filter(Boolean);
 }

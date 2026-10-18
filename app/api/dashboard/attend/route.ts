@@ -4,7 +4,8 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 
 const bodySchema = z.object({
   leadId: z.string().uuid(),
-  atendidoPor: z.string().max(80).optional(),
+  // "Revisado" es válido: el chat se revisó sin que un agente lo atendiera.
+  atendidoPor: z.string().trim().min(1, "Escribí quién atendió").max(80),
 });
 
 /** POST /api/dashboard/attend { leadId } — marca como atendido. */
@@ -24,7 +25,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     .from("leads")
     .update({
       atendido_at: new Date().toISOString(),
-      atendido_por: parsed.data.atendidoPor ?? "dueño",
+      atendido_por: parsed.data.atendidoPor,
     })
     .eq("id", parsed.data.leadId);
   if (error) {

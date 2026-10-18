@@ -35,3 +35,24 @@ export async function GET(
   }
   return NextResponse.json({ lead, messages: messages ?? [] });
 }
+
+/** DELETE /api/dashboard/lead/[id] — borra el lead y su conversación (cascade).
+ *  Pensado para demos: al reescribir, el bot lo trata como primer contacto. */
+export async function DELETE(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const { id } = await ctx.params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: "Lead inválido" }, { status: 400 });
+  }
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from("leads").delete().eq("id", id);
+  if (error) {
+    return NextResponse.json(
+      { error: `No se pudo eliminar: ${error.message}` },
+      { status: 500 },
+    );
+  }
+  return NextResponse.json({ ok: true });
+}

@@ -2,6 +2,7 @@ import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 import { z } from "zod";
 import { getEnv } from "@/lib/env";
 import { formatCordobaDateTime, isOpenNow } from "@/lib/time";
+import { splitColors } from "@/lib/format";
 import type { FinancingOption } from "@/lib/financing";
 import type { Lead, Vehicle } from "@/lib/supabase";
 
@@ -113,11 +114,19 @@ export function formatPrice(price: number, moneda: string): string {
 export function formatStock(vehicles: Vehicle[]): string {
   if (vehicles.length === 0) return "(sin stock disponible por el momento)";
   return vehicles
-    .map(
-      (v) =>
-        `- ${v.marca} ${v.modelo} ${v.version} | ${v.anio} | ${v.es_0km ? "0km" : `${new Intl.NumberFormat("es-AR").format(v.km)} km`} | ${formatPrice(v.precio, v.moneda)} | ${v.combustible} | ${v.transmision} | ${v.color}` +
-        (v.descripcion ? ` | ${v.descripcion}` : ""),
-    )
+    .map((v) => {
+      const colores = splitColors(v.color);
+      const colorTxt =
+        colores.length > 1
+          ? `colores: ${colores.join(", ")}`
+          : colores.length === 1
+            ? `color: ${colores[0]}`
+            : "color: sin informar";
+      return (
+        `- ${v.marca} ${v.modelo} ${v.version} | ${v.anio} | ${v.es_0km ? "0km" : `${new Intl.NumberFormat("es-AR").format(v.km)} km`} | ${formatPrice(v.precio, v.moneda)} | ${v.combustible} | ${v.transmision} | ${colorTxt}` +
+        (v.descripcion ? ` | ${v.descripcion}` : "")
+      );
+    })
     .join("\n");
 }
 

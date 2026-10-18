@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import useSWR from "swr";
 import { Flame, MessageCircle, Send, X } from "lucide-react";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { AttendButton } from "./AttendButton";
 import { TempBadge } from "./ui";
 import { formatHourCordoba, formatPhone, timeAgo } from "@/lib/format";
@@ -23,7 +24,18 @@ function Timeline({ lead, messages }: { lead: LeadDetail; messages: ChatMessage[
     { label: "Primera respuesta del bot", at: firstBot?.created_at ?? null },
   ];
   if (lead.requiere_humano) events.push({ label: "Derivado a asesor", at: lead.updated_at ?? lead.last_bot_reply_at });
-  if (lead.atendido_at) events.push({ label: `Atendido${lead.atendido_por ? ` por ${lead.atendido_por}` : ""}`, at: lead.atendido_at });
+  if (lead.atendido_at) {
+    const revisado = lead.atendido_por === "Revisado";
+    events.push({
+      label: revisado ? "Chat revisado (sin agente)" : `Atendido${lead.atendido_por ? ` por ${lead.atendido_por}` : ""}`,
+      at: lead.atendido_at,
+    });
+  }
+  if (lead.recontactado_agente_at) {
+    events.push({ label: "Recontactado por un agente (WhatsApp)", at: lead.recontactado_agente_at });
+  } else if (lead.estado === "recontactado") {
+    events.push({ label: "Recontactado por el bot", at: lead.last_bot_reply_at });
+  }
   return (
     <ol className="flex flex-col gap-2 border-l-2 border-(--line) pl-3" aria-label="Línea de tiempo">
       {events.map((e, i) => (
@@ -104,10 +116,16 @@ function RecontactBox({
 
   if (draft === null) {
     return (
-      <button className="btn btn-primary btn-sm" onClick={makeDraft} disabled={loading} title="La IA redacta un seguimiento según el interés del lead">
+      <Button
+        variant="primary"
+        size="sm"
+        onClick={makeDraft}
+        disabled={loading}
+        tooltip="La IA redacta un seguimiento según el interés del lead"
+      >
         <MessageCircle size={15} aria-hidden="true" />
         {loading ? "Generando…" : "Recontactar con IA"}
-      </button>
+      </Button>
     );
   }
 
@@ -129,18 +147,20 @@ function RecontactBox({
         rows={4}
       />
       <div className="flex gap-2">
-        <button
-          className="btn btn-primary btn-sm flex-1"
+        <Button
+          variant="primary"
+          size="sm"
+          className="flex-1"
           onClick={send}
           disabled={loading || !draft.trim() || !canSend}
-          title={canSend ? undefined : WINDOW_EXPIRED_MESSAGE}
+          tooltip={canSend ? "Enviar este mensaje por WhatsApp" : WINDOW_EXPIRED_MESSAGE}
         >
           <Send size={14} aria-hidden="true" />
           {loading ? "Enviando…" : "Enviar"}
-        </button>
-        <button className="btn btn-ghost btn-sm" onClick={() => setDraft(null)} disabled={loading}>
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setDraft(null)} disabled={loading} tooltip="Descartar el borrador">
           Cancelar
-        </button>
+        </Button>
       </div>
       {!canSend && <p className="text-xs text-(--ink-2)">{WINDOW_EXPIRED_MESSAGE}</p>}
     </div>
@@ -186,6 +206,20 @@ export function LeadDrawer({
 
   const waLink = data ? `https://wa.me/${data.lead.telefono.replace(/\D/g, "")}` : "#";
 
+  function onWhatsApp(): void {
+    if (!leadId) return;
+    void fetch("/api/dashboard/recontact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadId, step: "agente" }),
+    })
+      .then(() => {
+        onAttended();
+        refresh();
+      })
+      .catch(() => undefined);
+  }
+
   return (
     <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-label="Conversación del lead">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
@@ -200,15 +234,18 @@ export function LeadDrawer({
             )}
           </div>
           {data?.lead && <TempBadge value={data.lead.temperatura} />}
-          <button ref={closeRef} onClick={onClose} className="btn btn-ghost btn-sm" aria-label="Cerrar conversación" title="Cerrar (o tecla Escape)">
+          <Button ref={closeRef} variant="ghost" size="icon-sm" onClick={onClose} aria-label="Cerrar conversación" tooltip="Cerrar (o tecla Escape)">
             <X size={16} aria-hidden="true" />
-          </button>
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
           {error ? (
             <p role="alert" className="text-sm text-(--danger)">
-              No se pudo cargar. <button className="underline" onClick={() => refresh()}>Reintentar</button>
+              No se pudo cargar.{" "}
+              <Button variant="ghost" size="xs" onClick={() => refresh()} tooltip="Volver a intentar la carga">
+                Reintentar
+              </Button>
             </p>
           ) : !data ? (
             <div className="flex flex-col gap-2" aria-hidden="true">
@@ -255,40 +292,45 @@ export function LeadDrawer({
                   <Timeline lead={data.lead} messages={data.messages} />
                 </div>
               </div>
-
-              <div className="flex flex-col gap-2">
-                <RecontactBox lead={data.lead} onSent={refresh} onToast={onToast} />
-                <div className="flex flex-wrap gap-2">
-                  <a
-                    className="btn btn-ghost btn-sm flex-1"
-                    href={waLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Continuar vos la charla desde tu WhatsApp"
-                  >
-                    <MessageCircle size={14} aria-hidden="true" /> WhatsApp
-                  </a>
-                  {!data.lead.atendido_at && (
-                    <AttendButton
-                      leadId={data.lead.id}
-                      onDone={() => {
-                        onToast("Marcado como atendido");
-                        onAttended();
-                        refresh();
-                      }}
-                      onError={() => onToast("No se pudo marcar. Probá de nuevo.")}
-                    />
-                  )}
-                </div>
-                {data.lead.requiere_humano && !data.lead.atendido_at && (
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-(--hot)">
-                    <Flame size={13} aria-hidden="true" /> Este lead pidió un asesor.
-                  </p>
-                )}
-              </div>
             </>
           )}
         </div>
+
+        {data && !error && (
+          <div className="flex shrink-0 flex-col gap-2 border-t border-(--line) bg-(--surface) p-3">
+            <RecontactBox lead={data.lead} onSent={refresh} onToast={onToast} />
+            <div className="flex flex-wrap gap-2">
+              <ButtonLink
+                variant="ghost"
+                size="sm"
+                className="flex-1"
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onWhatsApp}
+                tooltip="Continuar vos la charla desde tu WhatsApp (queda registrado como recontacto por agente)"
+              >
+                <MessageCircle size={14} aria-hidden="true" /> WhatsApp
+              </ButtonLink>
+              {!data.lead.atendido_at && (
+                <AttendButton
+                  leadId={data.lead.id}
+                  onDone={() => {
+                    onToast("Guardado");
+                    onAttended();
+                    refresh();
+                  }}
+                  onError={() => onToast("No se pudo marcar. Probá de nuevo.")}
+                />
+              )}
+            </div>
+            {data.lead.requiere_humano && !data.lead.atendido_at && (
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-(--hot)">
+                <Flame size={13} aria-hidden="true" /> Este lead pidió un asesor.
+              </p>
+            )}
+          </div>
+        )}
       </aside>
     </div>
   );

@@ -15,7 +15,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
   const loginUrl = new URL("/login", req.url);
-  loginUrl.searchParams.set("next", req.nextUrl.pathname);
+  loginUrl.searchParams.set("next", req.nextUrl.pathname + req.nextUrl.search);
   return NextResponse.redirect(loginUrl);
 }
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type JSX } from "react";
+import { useState, type JSX } from "react";
 import { Send } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 /** Botón "Enviarme WhatsApp": plantilla hello_world a tu celular (demo). */
 export function SelfSend({ onToast }: { onToast: (msg: string) => void }): JSX.Element {
@@ -9,9 +10,10 @@ export function SelfSend({ onToast }: { onToast: (msg: string) => void }): JSX.E
   const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
 
-  useEffect(() => {
+  function openPanel(): void {
     setPhone(localStorage.getItem("demo-phone") ?? "");
-  }, []);
+    setOpen(true);
+  }
 
   async function send(): Promise<void> {
     const digits = phone.replace(/\D/g, "");
@@ -40,10 +42,10 @@ export function SelfSend({ onToast }: { onToast: (msg: string) => void }): JSX.E
 
   if (!open) {
     return (
-      <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)} title="Enviarte un WhatsApp de prueba">
+      <Button variant="solid" size="sm" onClick={openPanel} tooltip="Enviarte un WhatsApp de prueba">
         <Send size={15} aria-hidden="true" />
         <span className="hidden sm:inline">Enviarme WhatsApp</span>
-      </button>
+      </Button>
     );
   }
 
@@ -60,12 +62,12 @@ export function SelfSend({ onToast }: { onToast: (msg: string) => void }): JSX.E
         onChange={(e) => setPhone(e.target.value)}
         aria-label="Tu celular para la prueba"
       />
-      <button className="btn btn-primary btn-sm" disabled={sending} onClick={send} title="Enviar plantilla de prueba a ese número">
+      <Button variant="primary" size="sm" disabled={sending} onClick={send} tooltip="Enviar plantilla de prueba a ese número">
         {sending ? "…" : "Enviar"}
-      </button>
-      <button className="btn btn-ghost btn-sm" onClick={() => setOpen(false)} aria-label="Cancelar">
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => setOpen(false)} aria-label="Cancelar" tooltip="Cerrar sin enviar">
         ✕
-      </button>
+      </Button>
     </span>
   );
 }

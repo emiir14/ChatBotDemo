@@ -2,6 +2,7 @@
 
 import { useRef, useState, type JSX } from "react";
 import { Download, FileSpreadsheet, Upload, X } from "lucide-react";
+import { Button, ButtonLink, buttonClass } from "@/components/ui/Button";
 import { TEMPLATE_COLUMNS } from "@/lib/stock-import";
 
 interface PreviewData {
@@ -88,9 +89,9 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
       </p>
 
       <div className="mt-3 flex flex-col gap-2.5">
-        <a className="btn btn-ghost btn-sm w-fit" href="/api/dashboard/stock/template" download title="Bajá un CSV de ejemplo con el formato correcto">
+        <ButtonLink variant="ghost" size="sm" className="w-fit" href="/api/dashboard/stock/template" download tooltip="Bajá un CSV de ejemplo con el formato correcto">
           <Download size={14} aria-hidden="true" /> Descargar ejemplo CSV
-        </a>
+        </ButtonLink>
         <details className="rounded-xl bg-(--surface-3) px-3 py-2.5 text-sm">
           <summary className="cursor-pointer font-bold">Ver formato esperado del archivo</summary>
           <p className="mt-1.5 text-(--ink-2)">
@@ -100,7 +101,7 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
           <p className="mt-1.5 text-(--ink-2)">
             Ejemplo: <code className="tnum text-[0.8rem]">STK-001,,Toyota,Hilux,DX 2.4 TD 4x2 MT,2025,0,41200,USD,Diesel,Manual,Blanco,disponible,no,Pick-up cabina doble</code>
           </p>
-          <p className="mt-1 text-(--ink-2)">Reglas: precio mayor a 0 · año 1990 a actual+1 · moneda ARS o USD · estado disponible, reservado o vendido · es_0km sí/no. Cada auto se identifica por su <strong>codigo</strong>: si ya existe se actualiza, si no se crea.</p>
+          <p className="mt-1 text-(--ink-2)">Reglas: precio mayor a 0 · año 1990 a actual+1 · moneda ARS o USD · estado disponible, reservado o vendido · es_0km sí/no · en color podés poner varios colores separados por coma (ej: Blanco, Negro; entre comillas si el separador es la coma). Cada auto se identifica por su <strong>codigo</strong>: si ya existe se actualiza, si no se crea.</p>
         </details>
 
         <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="Qué hacer con el archivo">
@@ -146,7 +147,7 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
             {dragging ? "Soltá el archivo acá" : "Arrastrá tu archivo acá o tocá para buscarlo"}
           </p>
           <p className="text-xs text-(--ink-2)">.csv o .xlsx · máximo 2 MB</p>
-          <span className="btn btn-ghost btn-sm mt-1">Elegir archivo</span>
+          <span className={buttonClass({ variant: "ghost", size: "sm", className: "mt-1" })}>Elegir archivo</span>
           <input
             ref={inputRef}
             type="file"
@@ -168,25 +169,34 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
             <span className="tnum shrink-0 text-xs text-(--ink-2)">
               {(file.size / 1024).toFixed(0)} KB
             </span>
-            <button
-              className="btn btn-ghost btn-sm shrink-0"
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
               onClick={() => {
                 setFile(null);
                 setPreview(null);
                 if (inputRef.current) inputRef.current.value = "";
               }}
               aria-label={`Quitar ${file.name}`}
+              tooltip="Quitar el archivo elegido"
             >
               <X size={14} aria-hidden="true" />
-            </button>
+            </Button>
           </div>
         )}
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button className="btn btn-primary sm:w-auto" onClick={upload} disabled={!file || loading}>
+          <Button
+            variant="primary"
+            className="sm:w-auto"
+            onClick={upload}
+            disabled={!file || loading}
+            tooltip="Ver qué cambios haría este archivo, sin aplicar"
+          >
             <Upload size={15} aria-hidden="true" />
             {loading ? "Procesando…" : "Vista previa"}
-          </button>
+          </Button>
         </div>
         {error && <p role="alert" className="text-sm font-semibold text-(--danger)">{error}</p>}
         {done && <p role="status" className="text-sm font-semibold text-(--ok)">{done}</p>}
@@ -265,9 +275,16 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
             </div>
           </div>
 
-          <button className="btn btn-primary mt-3 w-full sm:w-auto" onClick={apply} disabled={loading}>
+          <Button
+            variant="primary"
+            block
+            className="mt-3 sm:w-auto"
+            onClick={apply}
+            disabled={loading}
+            tooltip="Aplicar los cambios del archivo al stock"
+          >
             {loading ? "Aplicando…" : mode === "replace" ? "Reemplazar toda la base" : `Aplicar (${preview.nuevos.length + preview.modificados.length} cambios)`}
-          </button>
+          </Button>
         </div>
       )}
     </section>

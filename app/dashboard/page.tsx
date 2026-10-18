@@ -8,30 +8,52 @@ import {
   AlertTriangle,
   BarChart3,
   CalendarClock,
+  Clock,
   Flame,
+  Layers,
   LayoutGrid,
+  LineChart,
   MessageCircle,
   MessageSquareText,
   MoonStar,
   PhoneForwarded,
+  Repeat,
   Sparkles,
   Table2,
+  Thermometer,
   Timer,
+  Trash2,
   Trophy,
   UserCheck,
   Users,
+  Wallet,
   Zap,
 } from "lucide-react";
 import { Shell, type CustomRange, type Period } from "@/components/dashboard/Header";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { AttendButton } from "@/components/dashboard/AttendButton";
 import { SelfSend } from "@/components/dashboard/SelfSend";
-import { ErrorBox, MetricSkeleton } from "@/components/dashboard/ui";
+import { NotificationSettings } from "@/components/dashboard/NotificationSettings";
+import { StaleThresholdForm } from "@/components/dashboard/StaleThresholdForm";
+import { ErrorBox, MetricSkeleton, ConfirmDialog } from "@/components/dashboard/ui";
 import { Funnel, Heatmap, Insights, ModelsVsStock } from "@/components/dashboard/panels";
+import {
+  BusinessHours,
+  DailyTrend,
+  EstadoDist,
+  ExportCsvButton,
+  FirstResponse,
+  ModelStages,
+  PriceDemand,
+  Recontact,
+  TempDist,
+} from "@/components/dashboard/charts";
 import { ActivityFeed, KpiCard, SectionHead } from "@/components/dashboard/motion";
 import { LeadsTable, type LeadFilters } from "@/components/dashboard/LeadsTable";
 import { customDayBounds, formatDurationShort } from "@/lib/metrics";
 import type { ActivityItem } from "@/lib/activity";
 import { formatPhone, timeAgo } from "@/lib/format";
+import { flashTitle, playPing, showBrowserNotification } from "@/lib/notify";
 import type { LeadRow, LeadsResponse, StatusResponse, SummaryResponse } from "@/components/dashboard/types";
 
 const LeadDrawer = dynamic(
@@ -69,16 +91,20 @@ type PanelTab = "resumen" | "embudo" | "leads";
 
 const TABS: Array<{ key: PanelTab; label: string; icon: typeof LayoutGrid }> = [
   { key: "resumen", label: "General", icon: LayoutGrid },
-  { key: "embudo", label: "Resumen de consultas", icon: BarChart3 },
   { key: "leads", label: "Leads", icon: Users },
+  { key: "embudo", label: "Resumen de consultas", icon: BarChart3 },
 ];
 
 export default function DashboardPage(): JSX.Element {
   const [period, setPeriod] = useState<Period>("today");
   const [custom, setCustom] = useState<CustomRange | null>(null);
   const [tab, setTab] = useState<PanelTab>("resumen");
-  const [filters, setFilters] = useState<LeadFilters>({ temperatura: "all", estado: "all", q: "", page: 1 });
-  const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<LeadFilters>({ temperatura: "all", estado: "all", atendido: "all", recontacto: "all", q: "", sort: "actividad", dir: "desc", page: 1 });
+  const [openLeadId, setOpenLeadId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("lead");
+  });
+  const [confirmDelete, setConfirmDelete] = useState<LeadRow | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const visible = useVisible();
@@ -93,7 +119,9 @@ export default function DashboardPage(): JSX.Element {
   }, []);
 
   const { data: status } = useSWR<StatusResponse>("/api/dashboard/status", json, {
-    refreshInterval: visible ? 4000 : 0,
+    // En primer plano cada 4s; en segundo plano más lento, para poder avisar
+    // de un chat nuevo aunque la pestaña no esté visible.
+    refreshInterval: visible ? 4000 : 15000,
     revalidateOnFocus: false,
   });
 
@@ -105,16 +133,28 @@ export default function DashboardPage(): JSX.Element {
   }
   const summaryKey = `/api/dashboard/summary?${summaryParams}`;
   const { data: summary, error: summaryError, mutate: mutateSummary } =
-    useSWR<SummaryResponse>(period === "custom" && !custom ? null : summaryKey, json, { revalidateOnFocus: false });
+    useSWR<SummaryResponse>(period === "custom" && !custom ? null : summaryKey, json, {
+      revalidateOnFocus: false,
+      // Mantiene los datos del período anterior mientras carga el nuevo:
+      // así el encabezado y el nombre del negocio no parpadean al cambiar de rango.
+      keepPreviousData: true,
+    });
 
   const leadsParams = new URLSearchParams({
     temperatura: filters.temperatura,
     estado: filters.estado,
+    atendido: filters.atendido,
+    recontacto: filters.recontacto,
+    sort: filters.sort,
+    dir: filters.dir,
     q: filters.q,
     page: String(filters.page),
   });
   const { data: leads, error: leadsError, mutate: mutateLeads } =
-    useSWR<LeadsResponse>(`/api/dashboard/leads?${leadsParams}`, json, { revalidateOnFocus: false });
+    useSWR<LeadsResponse>(`/api/dashboard/leads?${leadsParams}`, json, {
+      revalidateOnFocus: false,
+      keepPreviousData: true,
+    });
 
   const { data: queue, mutate: mutateQueue } = useSWR<LeadsResponse>(
     "/api/dashboard/leads?onlyAction=true&page=1",
@@ -135,6 +175,33 @@ export default function DashboardPage(): JSX.Element {
     mutateActivity();
   }, [mutateSummary, mutateLeads, mutateQueue, mutateActivity]);
 
+  const markAgentRecontact = useCallback(
+    (id: string) => {
+      void fetch("/api/dashboard/recontact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: id, step: "agente" }),
+      })
+        .then(() => refreshAll())
+        .catch(() => undefined);
+    },
+    [refreshAll],
+  );
+
+  const deleteLead = useCallback(
+    (id: string) => {
+      void fetch(`/api/dashboard/lead/${id}`, { method: "DELETE" })
+        .then((res) => {
+          if (!res.ok) throw new Error();
+          pushToast("Lead eliminado");
+          setOpenLeadId((cur) => (cur === id ? null : cur));
+          refreshAll();
+        })
+        .catch(() => pushToast("No se pudo eliminar el lead"));
+    },
+    [pushToast, refreshAll],
+  );
+
   useEffect(() => {
     if (!status) return;
     if (prevChange.current !== null && status.lastChange !== prevChange.current) {
@@ -143,8 +210,18 @@ export default function DashboardPage(): JSX.Element {
     prevChange.current = status.lastChange;
   }, [status, refreshAll]);
 
+  // Solo detectamos "lead nuevo" en la vista sin filtros: al buscar o filtrar,
+  // entran y salen leads del resultado y no son nuevos de verdad.
+  const leadsDefaultView =
+    filters.q === "" &&
+    filters.temperatura === "all" &&
+    filters.estado === "all" &&
+    filters.atendido === "all" &&
+    filters.recontacto === "all" &&
+    filters.page === 1;
+
   useEffect(() => {
-    if (!leads) return;
+    if (!leads || !leadsDefaultView) return;
     const ids = new Set(leads.items.map((l) => l.id));
     if (knownIds.current === null) {
       knownIds.current = ids;
@@ -154,11 +231,19 @@ export default function DashboardPage(): JSX.Element {
     knownIds.current = ids;
     if (fresh.length > 0) {
       const first = fresh[0];
+      const label = first.nombre ?? "Sin nombre";
       pushToast(`Nuevo lead: ${first.nombre ?? "sin nombre"}`, first.id);
       setNewIds(new Set(fresh.map((l) => l.id)));
       window.setTimeout(() => setNewIds(new Set()), 6000);
+      playPing();
+      flashTitle(`Nuevo lead: ${label}`);
+      showBrowserNotification(
+        "Nuevo chat en el bot",
+        `${label}${first.auto_interes ? ` · ${first.auto_interes}` : ""}`,
+        () => setOpenLeadId(first.id),
+      );
     }
-  }, [leads, pushToast]);
+  }, [leads, leadsDefaultView, pushToast]);
 
   async function resetPanel(): Promise<void> {
     const res = await fetch("/api/dashboard/reset", {
@@ -183,7 +268,6 @@ export default function DashboardPage(): JSX.Element {
   return (
     <Shell
       siteName={summary?.site.name ?? "Panel"}
-      hasDemoData={summary?.hasDemoData ?? false}
       period={period}
       onPeriod={(p) => {
         setPeriod(p);
@@ -201,7 +285,12 @@ export default function DashboardPage(): JSX.Element {
       demoMode={summary?.demoMode ?? false}
       resetCount={status?.leadsTotal ?? 0}
       onReset={resetPanel}
-      extraActions={summary?.demoMode ? <SelfSend onToast={pushToast} /> : undefined}
+      extraActions={
+        <>
+          {summary?.demoMode && <SelfSend onToast={pushToast} />}
+          <NotificationSettings onToast={pushToast} />
+        </>
+      }
     >
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-16 pt-5">
         {/* Pestañas del panel */}
@@ -246,49 +335,24 @@ export default function DashboardPage(): JSX.Element {
               El stock lleva {Math.floor(summary.stock.daysSinceUpdate ?? 0)} días sin actualizarse.
               El bot ya avisa a los clientes que la disponibilidad puede haber cambiado.
             </p>
-            <div>
-              <form
-                className="flex items-center gap-1.5"
-                title="Cambiar a los cuántos días se muestra esta alerta"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const input = (e.currentTarget.elements.namedItem("days") as HTMLInputElement | null);
-                  const days = Number(input?.value);
-                  if (!Number.isInteger(days) || days < 1 || days > 30) {
-                    pushToast("Umbral inválido (1 a 30 días)");
-                    return;
-                  }
-                  fetch("/api/dashboard/stock/meta", {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ stale_days: days }),
-                  }).then((r) => {
-                    if (!r.ok) throw new Error();
-                    pushToast("Umbral actualizado");
-                    mutateSummary();
-                  }).catch(() => pushToast("No se pudo guardar"));
-                }}
-              >
-                <label htmlFor="stale-days-main" className="whitespace-nowrap text-xs text-(--ink-2)">
-                  Avisar a los
-                </label>
-                <input
-                  id="stale-days-main"
-                  name="days"
-                  type="number"
-                  min={1}
-                  max={30}
-                  defaultValue={summary.stock.staleDays}
-                  className="input tnum w-14"
-                  style={{ minHeight: 30, fontSize: "0.8rem" }}
-                  aria-label="Días sin actualizar para alertar"
-                />
-                <span className="text-xs text-(--ink-2)">días</span>
-                <button type="submit" className="btn btn-ghost btn-xs" title="Guardar a los cuántos días aparece esta alerta">
-                  Guardar umbral
-                </button>
-              </form>
-            </div>
+            <StaleThresholdForm
+              idPrefix="stale-days-main"
+              initialDays={summary.stock.staleDays}
+              onError={pushToast}
+              onSave={async (days) => {
+                const r = await fetch("/api/dashboard/stock/meta", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ stale_days: days }),
+                });
+                if (!r.ok) {
+                  pushToast("No se pudo guardar");
+                  return;
+                }
+                pushToast("Umbral actualizado");
+                mutateSummary();
+              }}
+            />
           </motion.div>
         )}
 
@@ -316,12 +380,12 @@ export default function DashboardPage(): JSX.Element {
               <KpiCard
                 icon={<Zap size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
                 label="Consultas" value={m.consultas.value} format={(n) => String(Math.round(n))}
-                sub={summary.periodLabel} delay={0}
+                delta={m.consultas.delta} sub={summary.periodLabel} delay={0}
               />
               <KpiCard
                 icon={<MessageSquareText size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
                 label="Atendidas" value={m.atendidas.value} format={(n) => String(Math.round(n))}
-                spark={summary.daily} delay={0.03}
+                delta={m.atendidas.delta} spark={summary.daily} delay={0.03}
               />
               <KpiCard
                 icon={<UserCheck size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
@@ -331,17 +395,17 @@ export default function DashboardPage(): JSX.Element {
               <KpiCard
                 icon={<Flame size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="Calientes" value={m.calientes.value} format={(n) => String(Math.round(n))}
-                delay={0.09}
+                delta={m.calientes.delta} delay={0.09}
               />
               <KpiCard
                 icon={<PhoneForwarded size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="Derivados" value={m.derivados.value} format={(n) => String(Math.round(n))}
-                sub="al asesor" delay={0.12}
+                delta={m.derivados.delta} sub="al asesor" delay={0.12}
               />
               <KpiCard
                 icon={<MoonStar size={16} className="text-indigo-700 dark:text-indigo-300" />} tint="var(--cold-soft)"
                 label="Fuera de hora" value={m.fueraHorario.value} format={(n) => String(Math.round(n))}
-                tone="green" delay={0.15}
+                delta={m.fueraHorario.delta} deltaHigherIsBetter={false} tone="green" delay={0.15}
               />
               <KpiCard
                 icon={<Timer size={16} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
@@ -404,27 +468,39 @@ export default function DashboardPage(): JSX.Element {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button className="btn btn-primary btn-sm flex-1 sm:flex-none" onClick={() => setOpenLeadId(l.id)} title="Abrir la conversación completa">
+                      <Button variant="primary" size="sm" className="flex-1 sm:flex-none" onClick={() => setOpenLeadId(l.id)} tooltip="Abrir la conversación completa">
                         Abrir
-                      </button>
-                      <a
-                        className="btn btn-ghost btn-sm flex-1 sm:flex-none"
+                      </Button>
+                      <ButtonLink
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 sm:flex-none"
                         href={`https://wa.me/${l.telefono.replace(/\D/g, "")}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Continuar vos la charla desde tu WhatsApp"
+                        onClick={() => markAgentRecontact(l.id)}
+                        tooltip="Continuar vos la charla desde tu WhatsApp"
                         aria-label={`Abrir WhatsApp de ${l.nombre ?? l.telefono}`}
                       >
                         <MessageCircle size={14} aria-hidden="true" /> WhatsApp
-                      </a>
+                      </ButtonLink>
                       <AttendButton
                         leadId={l.id}
                         onDone={() => {
-                          pushToast("Marcado como atendido");
+                          pushToast("Guardado");
                           refreshAll();
                         }}
                         onError={() => pushToast("No se pudo marcar. Probá de nuevo.")}
                       />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setConfirmDelete(l)}
+                        aria-label={`Eliminar ${l.nombre ?? l.telefono}`}
+                        tooltip="Eliminar lead (borra la conversación)"
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                      </Button>
                     </div>
                   </motion.li>
                 ))}
@@ -454,34 +530,120 @@ export default function DashboardPage(): JSX.Element {
 
       {tab === "embudo" && (
         <>
+          {/* Barra de la pestaña: siempre visible, para que la acción no se pierda */}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight">Resumen de consultas</h1>
+              <p className="text-sm text-(--ink-2)">
+                Período: <strong>{summary?.periodLabel ?? "cargando…"}</strong> · analítica de la conversación.
+              </p>
+            </div>
+            <ExportCsvButton summary={summary} />
+          </div>
+
           {/* EMBUDO */}
           {summary && (
             <section aria-label="Embudo de ventas">
               <SectionHead
                 icon={<BarChart3 size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
                 title="Embudo de ventas" hint="De la consulta a la derivación."
-                action={<a href="/dashboard/embudo" className="btn btn-ghost btn-sm">Ver tablero</a>}
+                action={<ButtonLink href="/dashboard/embudo" variant="ghost" size="sm" tooltip="Abrir el tablero kanban por etapa">Ver tablero</ButtonLink>}
               />
               <Funnel steps={summary.funnel} />
             </section>
           )}
         {/* ANÁLISIS */}
-        <section aria-label="Análisis" className="grid gap-6 lg:grid-cols-2">
-          <div>
-            <SectionHead
-              icon={<CalendarClock size={17} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
-              title="Cuándo escriben" hint="Estos horarios hoy nadie atiende."
-            />
-            {summary ? <Heatmap cells={summary.heatmap} /> : <div className="card p-4"><div className="skeleton h-40" /></div>}
+        {!summary ? (
+          <div className="grid gap-6 lg:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => <div key={i} className="card p-4"><div className="skeleton h-40" /></div>)}
           </div>
-          <div>
-            <SectionHead
-              icon={<Table2 size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
-              title="Demanda vs stock" hint="Qué piden contra lo que hay para entregar."
-            />
-            {summary ? <ModelsVsStock rows={summary.modelsVsStock} /> : <div className="card p-4"><div className="skeleton h-40" /></div>}
-          </div>
-        </section>
+        ) : (
+          <>
+            <section aria-label="Tendencia diaria">
+              <SectionHead
+                icon={<LineChart size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+                title="Tendencia diaria" hint="Cuántas consultas entraron cada día."
+              />
+              <DailyTrend data={summary.daily} />
+            </section>
+
+            <section aria-label="Perfil de los leads" className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <SectionHead
+                  icon={<Thermometer size={17} className="text-(--hot)" />} tint="var(--hot-soft)"
+                  title="Por temperatura" hint="Calientes, tibios y fríos."
+                />
+                <TempDist data={summary.tempDist} />
+              </div>
+              <div>
+                <SectionHead
+                  icon={<Layers size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+                  title="Por etapa" hint="En qué punto está cada lead."
+                />
+                <EstadoDist data={summary.estadoDist} />
+              </div>
+            </section>
+
+            <section aria-label="Velocidad y horarios" className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <SectionHead
+                  icon={<Timer size={17} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
+                  title="Tiempo de primera respuesta" hint="Qué tan rápido contesta el bot."
+                />
+                <FirstResponse data={summary.firstResponse} />
+              </div>
+              <div>
+                <SectionHead
+                  icon={<Clock size={17} className="text-indigo-700 dark:text-indigo-300" />} tint="var(--cold-soft)"
+                  title="Horario comercial" hint="Dentro vs fuera de horario."
+                />
+                <BusinessHours data={summary.businessHours} />
+              </div>
+            </section>
+
+            <section aria-label="Recontacto y horarios pico" className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <SectionHead
+                  icon={<Repeat size={17} className="text-(--warm)" />} tint="var(--warm-soft)"
+                  title="Recontacto" hint="¿Los revive el bot o un asesor?"
+                />
+                <Recontact data={summary.recontact} />
+              </div>
+              <div>
+                <SectionHead
+                  icon={<CalendarClock size={17} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"
+                  title="Cuándo escriben" hint="Cuándo se concentran las consultas."
+                />
+                <Heatmap cells={summary.heatmap} />
+              </div>
+            </section>
+
+            <section aria-label="Embudo y precios" className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <SectionHead
+                  icon={<BarChart3 size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+                  title="Embudo por modelo" hint="Cómo avanza cada modelo."
+                />
+                <ModelStages data={summary.modelsStages} />
+              </div>
+              <div>
+                <SectionHead
+                  icon={<Wallet size={17} className="text-(--warm)" />} tint="var(--warm-soft)"
+                  title="Demanda vs stock por precio" hint="Qué buscan contra lo que hay."
+                />
+                <PriceDemand data={summary.priceDemand} />
+              </div>
+            </section>
+
+            <section aria-label="Demanda por modelo">
+              <SectionHead
+                icon={<Table2 size={17} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
+                title="Modelos más pedidos vs stock" hint="Qué piden contra lo que hay para entregar."
+              />
+              <ModelsVsStock rows={summary.modelsVsStock} />
+            </section>
+          </>
+        )}
         </>
       )}
 
@@ -510,6 +672,7 @@ export default function DashboardPage(): JSX.Element {
               filters={filters}
               onFilters={setFilters}
               onOpen={setOpenLeadId}
+              onDelete={deleteLead}
               newIds={newIds}
             />
           )}
@@ -528,6 +691,26 @@ export default function DashboardPage(): JSX.Element {
         onToast={pushToast}
       />
 
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Eliminar lead"
+          danger
+          confirmLabel="Eliminar"
+          message={
+            <>
+              ¿Eliminar a <strong>{confirmDelete.nombre ?? formatPhone(confirmDelete.telefono)}</strong> y toda su
+              conversación? Es permanente. Si vuelve a escribir, el bot lo trata como primer contacto.
+            </>
+          }
+          onConfirm={() => {
+            const id = confirmDelete.id;
+            setConfirmDelete(null);
+            deleteLead(id);
+          }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
       <div className="fixed bottom-20 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 flex-col gap-2 px-4 lg:bottom-4" aria-live="polite">
         <AnimatePresence>
           {toasts.map((t) => (
@@ -542,22 +725,20 @@ export default function DashboardPage(): JSX.Element {
             >
               <span className="flex-1">{t.msg}</span>
               {t.leadId && (
-                <button
-                  className="shrink-0 font-bold underline underline-offset-2"
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="shrink-0"
+                  tooltip="Abrir la conversación de ese lead"
                   onClick={() => { setOpenLeadId(t.leadId!); setToasts((x) => x.filter((y) => y.id !== t.id)); }}
                 >
                   Ver conversación
-                </button>
+                </Button>
               )}
             </motion.div>
           ))}
         </AnimatePresence>
       </div>
-
-      <footer className="mx-auto w-full max-w-6xl px-4 pb-8 text-xs text-(--ink-3)">
-        Teléfonos: {formatPhone("5493515550101")} como ejemplo ·
-        Zona horaria America/Argentina/Cordoba
-      </footer>
     </Shell>
   );
 }

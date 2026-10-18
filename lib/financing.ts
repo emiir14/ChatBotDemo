@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { todayCordobaDate } from "@/lib/time";
 
 /** Plan de financiación tal como vive en la base. */
 export interface FinancingOption {
@@ -47,12 +48,5 @@ export function activeFinancing(
 
 /** Hoy en Córdoba como AAAA-MM-DD (para comparar vigencias). */
 export function todayCordoba(date: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Argentina/Cordoba",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
+  return todayCordobaDate(date);
 }

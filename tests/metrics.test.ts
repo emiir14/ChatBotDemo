@@ -4,12 +4,14 @@ import {
   buildFunnel,
   buildInsights,
   customDayBounds,
+  maxCustomTo,
   median,
   periodLabel,
   periodRange,
   previousRange,
   resolveRange,
   startOfCordobaDay,
+  validateCustomBounds,
   variation,
 } from "@/lib/metrics";
 
@@ -73,6 +75,42 @@ describe("resolveRange + periodLabel + customDayBounds", () => {
   it("all arranca en 2020", () => {
     const r = resolveRange("all", new Date("2026-10-07T12:00:00Z"));
     expect(r.from.toISOString()).toBe("2020-01-01T00:00:00.000Z");
+  });
+});
+
+describe("validateCustomBounds (sin fechas futuras)", () => {
+  const now = new Date("2026-10-07T12:00:00Z"); // 09:00 ART del 7/10
+
+  it("acepta un rango que termina hoy (cota exclusiva = mañana en Córdoba)", () => {
+    const from = startOfCordobaDay(now);
+    const to = maxCustomTo(now);
+    expect(to.toISOString()).toBe("2026-10-08T03:00:00.000Z");
+    expect(validateCustomBounds(from, to, now).ok).toBe(true);
+  });
+
+  it("rechaza un rango que se extiende al futuro", () => {
+    const from = startOfCordobaDay(now);
+    const to = new Date("2026-10-09T03:00:00.000Z"); // dentro de 2 días
+    const res = validateCustomBounds(from, to, now);
+    expect(res.ok).toBe(false);
+    expect(res.msg).toContain("futuras");
+  });
+
+  it("rechaza desde posterior a hasta y fechas inválidas", () => {
+    const from = new Date("2026-10-07T03:00:00.000Z");
+    expect(validateCustomBounds(from, from, now).ok).toBe(false);
+    expect(validateCustomBounds(new Date(NaN), from, now).ok).toBe(false);
+  });
+
+  it("a la noche usa el día de Córdoba, no el UTC", () => {
+    // 2026-10-08T02:30Z = 7/10 23:30 en Córdoba: "hoy" sigue siendo el 7.
+    const night = new Date("2026-10-08T02:30:00Z");
+    const today = maxCustomTo(night);
+    expect(today.toISOString()).toBe("2026-10-08T03:00:00.000Z");
+    // El 8 en Córdoba ya es futuro a esa hora.
+    expect(
+      validateCustomBounds(startOfCordobaDay(night), new Date("2026-10-09T03:00:00Z"), night).ok,
+    ).toBe(false);
   });
 });
 

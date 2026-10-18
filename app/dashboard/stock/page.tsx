@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState, type JSX } from "react";
 import useSWR from "swr";
+import { Trash2 } from "lucide-react";
 import { Shell } from "@/components/dashboard/Header";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { EmptyBox, ErrorBox, SectionTitle } from "@/components/dashboard/ui";
 import {
   AddButton,
@@ -15,7 +17,9 @@ import {
   type VehicleFormValue,
 } from "@/components/dashboard/Stock";
 import { ImportWizard } from "@/components/dashboard/ImportWizard";
+import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { timeAgo } from "@/lib/format";
+import type { PeriodKey } from "@/lib/metrics";
 
 interface StockResponse {
   vehicles: UIVehicle[];
@@ -68,12 +72,18 @@ function toForm(v: UIVehicle): VehicleFormValue {
 
 export default function StockPage(): JSX.Element {
   const { data, error, mutate } = useSWR<StockResponse>("/api/dashboard/stock", json);
-  const { data: meta, mutate: mutateMeta } = useSWR<MetaResponse>("/api/dashboard/stock/meta", json);
+  const [historyPeriod, setHistoryPeriod] = useState<PeriodKey>("all");
+  const { data: meta, mutate: mutateMeta } = useSWR<MetaResponse>(
+    `/api/dashboard/stock/meta?period=${historyPeriod}`,
+    json,
+    { keepPreviousData: true },
+  );
   const [modal, setModal] = useState<{ mode: "create" } | { mode: "edit"; vehicle: UIVehicle } | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [soldConfirm, setSoldConfirm] = useState<{ id: string; codigo: string } | null>(null);
 
   const refresh = useCallback(() => {
     mutate();
@@ -91,6 +101,7 @@ export default function StockPage(): JSX.Element {
     setFormError(null);
     try {
       const isEdit = modal && "vehicle" in modal;
+      const prev = isEdit ? (modal as { vehicle: UIVehicle }).vehicle : null;
       const res = await fetch(
         isEdit ? `/api/dashboard/stock/${(modal as { vehicle: UIVehicle }).vehicle.id}` : "/api/dashboard/stock",
         {
@@ -104,6 +115,9 @@ export default function StockPage(): JSX.Element {
       setModal(null);
       setToast(isEdit ? "Auto actualizado" : "Auto agregado al stock");
       refresh();
+      if (prev && value.estado === "vendido" && prev.estado !== "vendido") {
+        setSoldConfirm({ id: prev.id, codigo: prev.codigo });
+      }
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Error al guardar");
     } finally {
@@ -123,8 +137,23 @@ export default function StockPage(): JSX.Element {
       if (!res.ok) throw new Error();
       setToast(`${v.codigo} → ${estado}`);
       refresh();
+      if (estado === "vendido") setSoldConfirm({ id: v.id, codigo: v.codigo });
     } catch {
       setToast("No se pudo cambiar el estado");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeVehicle(id: string, codigo: string): Promise<void> {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/dashboard/stock/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setToast(`${codigo} eliminado`);
+      refresh();
+    } catch {
+      setToast("No se pudo eliminar");
     } finally {
       setBusyId(null);
     }
@@ -142,10 +171,12 @@ export default function StockPage(): JSX.Element {
   }
 
   return (
-    <Shell siteName="Stock" hasDemoData={false}>
+    <Shell siteName="Stock">
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 pb-16 pt-5">
         <div className="flex flex-wrap items-center gap-2">
-          <a href="/dashboard" className="btn btn-ghost btn-sm">← Panel</a>
+          <ButtonLink href="/dashboard" variant="ghost" size="sm" tooltip="Volver al panel general">
+            ← Panel
+          </ButtonLink>
           <h1 className="text-xl font-bold tracking-tight">Gestión de stock</h1>
           <span className="tnum ml-auto text-sm text-(--ink-2)">
             {data ? `${data.vehicles.length} vehículos` : ""}
@@ -183,6 +214,7 @@ export default function StockPage(): JSX.Element {
                   busy={busyId === v.id}
                   onEdit={() => { setFormError(null); setModal({ mode: "edit", vehicle: v }); }}
                   onEstado={(e) => quickEstado(v, e)}
+                  onDelete={() => removeVehicle(v.id, v.codigo)}
                 />
               ))}
             </ul>
@@ -190,11 +222,17 @@ export default function StockPage(): JSX.Element {
         </section>
 
         <section aria-label="Historial de cambios">
-          <SectionTitle title="Historial" hint="Quién cambió qué y cuándo." />
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-base font-bold tracking-tight">Historial</h2>
+              <p className="text-sm text-(--ink-2)">Quién cambió qué y cuándo.</p>
+            </div>
+            <PeriodFilter value={historyPeriod} onChange={setHistoryPeriod} />
+          </div>
           {!meta ? (
             <div className="card p-4" aria-hidden="true"><div className="skeleton h-10" /></div>
           ) : meta.changes.length === 0 ? (
-            <EmptyBox message="Todavía no hay cambios registrados." />
+            <EmptyBox message="Todavía no hay cambios en este período." />
           ) : (
             <ul className="card divide-y divide-(--line)">
               {meta.changes.map((c) => (
@@ -222,6 +260,37 @@ export default function StockPage(): JSX.Element {
           onClose={() => setModal(null)}
           onSubmit={submitForm}
         />
+      )}
+
+      {soldConfirm && (
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Vehículo vendido">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSoldConfirm(null)} aria-hidden="true" />
+          <div className="card absolute left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 p-5">
+            <h2 className="text-lg font-bold">Auto vendido</h2>
+            <p className="mt-1 text-sm text-(--ink-2)">
+              Marcaste <strong className="tnum">{soldConfirm.codigo}</strong> como vendido. Como ya no está en stock,
+              ¿querés eliminarlo de la lista?
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant="danger"
+                className="flex-1"
+                disabled={busyId === soldConfirm.id}
+                tooltip="Eliminar el vehículo del stock"
+                onClick={() => {
+                  const { id, codigo } = soldConfirm;
+                  setSoldConfirm(null);
+                  void removeVehicle(id, codigo);
+                }}
+              >
+                <Trash2 size={15} aria-hidden="true" /> Eliminar del stock
+              </Button>
+              <Button variant="ghost" tooltip="Dejarlo en la lista como vendido" onClick={() => setSoldConfirm(null)}>
+                Mantener como vendido
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (

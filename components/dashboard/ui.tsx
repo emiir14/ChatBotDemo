@@ -1,7 +1,8 @@
 "use client";
 
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { Flame, Snowflake, Thermometer } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import type { Temperatura } from "./types";
 
 /** Badge de temperatura: color + ícono + texto (nunca solo color). */
@@ -69,9 +70,15 @@ export function ErrorBox({
     <div className="card p-5 text-center" role="alert">
       <p className="text-sm font-semibold">No se pudo cargar esta sección</p>
       <p className="mt-1 text-sm text-(--ink-2)">{message}</p>
-      <button className="btn btn-ghost btn-sm mt-3" onClick={onRetry}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-3"
+        tooltip="Volver a intentar la carga"
+        onClick={onRetry}
+      >
         Reintentar
-      </button>
+      </Button>
     </div>
   );
 }
@@ -81,6 +88,51 @@ export function EmptyBox({ message }: { message: string }): JSX.Element {
   return (
     <div className="card p-6 text-center">
       <p className="text-sm text-(--ink-2)">{message}</p>
+    </div>
+  );
+}
+
+/** Diálogo de confirmación modal (para acciones destructivas). */
+export function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  cancelLabel = "Cancelar",
+  danger = false,
+  busy = false,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}): JSX.Element {
+  return (
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="absolute inset-0 bg-black/40" onClick={onCancel} aria-hidden="true" />
+      <div className="card absolute left-1/2 top-1/2 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 p-5">
+        <h2 className="text-lg font-bold">{title}</h2>
+        <div className="mt-1 text-sm text-(--ink-2)">{message}</div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            variant={danger ? "danger" : "primary"}
+            className="flex-1"
+            disabled={busy}
+            tooltip={confirmLabel}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
+          <Button variant="ghost" disabled={busy} tooltip="Cerrar sin hacer cambios" onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

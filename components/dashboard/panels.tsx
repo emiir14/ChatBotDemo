@@ -35,15 +35,15 @@ export function Funnel({ steps }: { steps: SummaryResponse["funnel"] }): JSX.Ele
   return (
     <div className="card p-4" role="img" aria-label={`Embudo: ${steps.map((s) => `${s.label} ${s.value}`).join(", ")}`}>
       <div className="flex flex-col gap-3">
-        {steps.map((s) => (
+        {steps.map((s, i) => (
           <div key={s.key}>
             <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
               <span className="font-semibold">{s.label}</span>
               <span className="tnum">
                 <strong>{s.value}</strong>
-                {s.conversionFromPrev !== null && (
+                {i > 0 && steps[0].value > 0 && (
                   <span className="ml-2 text-xs text-(--ink-2)">
-                    {Math.round(s.conversionFromPrev)}% del paso anterior
+                    {Math.round((s.value / steps[0].value) * 100)}% del total
                   </span>
                 )}
               </span>
@@ -104,7 +104,7 @@ export function Heatmap({ cells }: { cells: SummaryResponse["heatmap"] }): JSX.E
     <div className="card p-4">
       <p className="mb-2 text-sm">
         Pico: <strong className="capitalize">{peakD.d} {peakH.h}</strong> ({Math.max(peakH.n, 1)} consultas).
-        Las barras ámbar caen fuera de horario: hoy nadie las atiende.
+        Las barras ámbar caen fuera de horario comercial: el bot las atiende igual.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <div role="img" aria-label={`Consultas por hora. Pico a las ${peakH.h}.`}>

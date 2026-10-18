@@ -3,6 +3,12 @@
 export type Temperatura = "caliente" | "tibio" | "frio";
 export type LeadEstado = "nuevo" | "en_conversacion" | "derivado" | "recontactado";
 
+/** Variación respecto al período anterior (null = sin datos previos). */
+export interface Variation {
+  pct: number;
+  up: boolean;
+}
+
 export interface SummaryResponse {
   period: string;
   periodLabel: string;
@@ -10,12 +16,12 @@ export interface SummaryResponse {
   hasDemoData: boolean;
   demoMode: boolean;
   metrics: {
-    consultas: { value: number };
-    atendidas: { value: number };
+    consultas: { value: number; delta: Variation | null };
+    atendidas: { value: number; delta: Variation | null };
     primeraRespuestaSeg: { value: number | null };
-    fueraHorario: { value: number };
-    calientes: { value: number };
-    derivados: { value: number };
+    fueraHorario: { value: number; delta: Variation | null };
+    calientes: { value: number; delta: Variation | null };
+    derivados: { value: number; delta: Variation | null };
   };
   funnel: Array<{
     key: string;
@@ -25,6 +31,24 @@ export interface SummaryResponse {
   }>;
   heatmap: Array<{ dow: number; hour: number; n: number }>;
   daily: Array<{ day: string; n: number }>;
+  tempDist: Array<{ key: Temperatura; n: number }>;
+  estadoDist: Array<{ key: LeadEstado; n: number }>;
+  firstResponse: {
+    buckets: Array<{ label: string; n: number }>;
+    withinSla: number;
+    total: number;
+    slaSeconds: number;
+  };
+  businessHours: { dentro: number; fuera: number; total: number };
+  recontact: { total: number; bot: number; agente: number; respondieron: number };
+  modelsStages: Array<{
+    modelo: string;
+    consultas: number;
+    calificados: number;
+    calientes: number;
+    derivados: number;
+  }>;
+  priceDemand: Array<{ bucket: string; consultas: number; stock: number }>;
   modelsVsStock: Array<{ modelo: string; consultas: number; stock: number }>;
   insights: Array<{ text: string }>;
   actionCount: number;
@@ -49,6 +73,8 @@ export interface LeadRow {
   origen_demo: boolean;
   atendido_at: string | null;
   atendido_por: string | null;
+  /** Timestamp del recontacto hecho por un agente (botón WhatsApp). */
+  recontactado_agente_at: string | null;
   last_customer_message_at: string | null;
   created_at: string;
 }
@@ -76,6 +102,7 @@ export interface LeadDetail {
   origen_demo: boolean;
   atendido_at: string | null;
   atendido_por: string | null;
+  recontactado_agente_at: string | null;
   first_message_at: string | null;
   last_customer_message_at: string | null;
   last_bot_reply_at: string | null;

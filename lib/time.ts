@@ -9,6 +9,21 @@ export const BUSINESS_TIME_ZONE = "America/Argentina/Cordoba";
 export const WHATSAPP_FREE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Hoy en Córdoba como AAAA-MM-DD (para inputs de fecha y comparaciones).
+ * El servidor corre en UTC: a la noche el día UTC puede diferir del de Córdoba.
+ */
+export function todayCordobaDate(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
  * ¿Se puede enviar un mensaje libre (no plantilla) al lead?
  * Solo si last_customer_message_at está dentro de las últimas 24 h.
  */

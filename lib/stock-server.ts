@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/** Umbral por defecto (días) para la alerta de stock desactualizado. */
+export const DEFAULT_STALE_DAYS = 4;
+
 /** Schema compartido de alta/edición de vehículos. */
 export const vehicleInputSchema = z.object({
   codigo: z.string().min(1).max(30),
@@ -14,7 +17,7 @@ export const vehicleInputSchema = z.object({
   moneda: z.enum(["ARS", "USD"]).default("ARS"),
   combustible: z.string().max(30).optional().default("Nafta"),
   transmision: z.string().max(30).optional().default("Manual"),
-  color: z.string().max(30).optional().default(""),
+  color: z.string().max(120).optional().default(""),
   estado: z.enum(["disponible", "reservado", "vendido"]).default("disponible"),
   es_0km: z.boolean().default(false),
   descripcion: z.string().max(500).optional().default(""),

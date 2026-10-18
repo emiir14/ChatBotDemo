@@ -17,13 +17,78 @@ export function median(values: number[]): number | null {
     : (nums[mid - 1] + nums[mid]) / 2;
 }
 
-/** Segundos → etiqueta corta ("45 s", "3 min"). */
+/** Cota superior EXCLUSIVA válida para un rango personalizado: el inicio de
+ * mañana en Córdoba. Así "hasta hoy" entra completo y nada futuro es válido.
+ */
+export function maxCustomTo(now: Date = new Date()): Date {
+  return new Date(startOfCordobaDay(now).getTime() + 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Valida un rango personalizado con cotas [from, to) en tiempo UTC: desde
+ * antes que hasta, y sin fechas futuras (hora de Córdoba). Puro y testeable.
+ */
+export function validateCustomBounds(
+  from: Date,
+  to: Date,
+  now: Date = new Date(),
+): { ok: boolean; msg: string | null } {
+  if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime())) {
+    return { ok: false, msg: "Rango inválido." };
+  }
+  if (from >= to) return { ok: false, msg: "Desde debe ser anterior a hasta." };
+  if (to > maxCustomTo(now)) {
+    return { ok: false, msg: "No podés seleccionar fechas futuras." };
+  }
+  return { ok: true, msg: null };
+}
+
 export function formatDurationShort(seconds: number | null): string {
   if (seconds === null || !Number.isFinite(seconds)) return "—";
   if (seconds < 60) return `${Math.round(seconds)} s`;
   const min = seconds / 60;
   if (min < 60) return `${Math.round(min)} min`;
   return `${(min / 60).toFixed(1)} h`;
+}
+
+// ---------------------------------------------------------------------------
+// Tiempo de primera respuesta: histograma + % dentro del SLA
+// ---------------------------------------------------------------------------
+export const FIRST_RESPONSE_SLA_SECONDS = 5 * 60;
+
+const RESPONSE_BUCKETS: Array<{ label: string; upper: number }> = [
+  { label: "<30 s", upper: 30 },
+  { label: "30 s a 1 min", upper: 60 },
+  { label: "1 a 2 min", upper: 120 },
+  { label: "2 a 5 min", upper: 300 },
+  { label: "5 a 10 min", upper: 600 },
+  { label: "10 a 30 min", upper: 1800 },
+  { label: "más de 30 min", upper: Number.POSITIVE_INFINITY },
+];
+
+export interface ResponseHistogram {
+  buckets: Array<{ label: string; n: number }>;
+  withinSla: number;
+  total: number;
+  slaSeconds: number;
+}
+
+export function buildResponseHistogram(
+  values: number[],
+  slaSeconds: number = FIRST_RESPONSE_SLA_SECONDS,
+): ResponseHistogram {
+  const clean = values.filter((v) => Number.isFinite(v) && v >= 0);
+  const buckets = RESPONSE_BUCKETS.map((b) => ({ label: b.label, n: 0 }));
+  for (const v of clean) {
+    const idx = RESPONSE_BUCKETS.findIndex((b) => v < b.upper);
+    buckets[idx < 0 ? buckets.length - 1 : idx].n += 1;
+  }
+  return {
+    buckets,
+    withinSla: clean.filter((v) => v <= slaSeconds).length,
+    total: clean.length,
+    slaSeconds,
+  };
 }
 
 // ---------------------------------------------------------------------------

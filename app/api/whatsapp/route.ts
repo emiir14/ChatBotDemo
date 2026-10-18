@@ -19,6 +19,7 @@ import {
 } from "@/lib/bot";
 import { activeFinancing, todayCordoba, type FinancingOption } from "@/lib/financing";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { sendPushToAll } from "@/lib/push-server";
 import { getSupabaseAdmin, type Lead, type Vehicle } from "@/lib/supabase";
 
 /**
@@ -183,6 +184,10 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     lead = created as Lead;
   }
 
+  // Motivo del aviso push (si corresponde): intervención humana o lead caliente.
+  let pushReason: "intervencion" | "caliente" | null = null;
+  let pushInteres = lead.auto_interes;
+
   // 4. Guardar el mensaje entrante y actualizar actividad.
   await supabase.from("messages").insert({
     lead_id: lead.id,
@@ -287,8 +292,13 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
       if (result.leadUpdate.requiere_humano === true) {
         patch.estado = "derivado";
         needsHuman = true;
+        if (!lead.requiere_humano) pushReason = "intervencion";
       } else if (lead.estado === "nuevo") {
         patch.estado = "en_conversacion";
+      }
+      if (typeof patch.auto_interes === "string") pushInteres = patch.auto_interes;
+      if (!pushReason && patch.temperatura === "caliente" && lead.temperatura !== "caliente") {
+        pushReason = "caliente";
       }
       if (Object.keys(patch).length > 0) {
         const { error } = await supabase
@@ -315,6 +325,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     } else {
       reply = technicalErrorReply();
       needsHuman = true;
+      if (!lead.requiere_humano && !pushReason) pushReason = "intervencion";
       await supabase
         .from("leads")
         .update({ requiere_humano: true, estado: "derivado" })
@@ -341,6 +352,18 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   console.log(
     `[whatsapp] respuesta ${sent.ok ? "enviada" : "NO enviada"} a ${masked}${needsHuman ? " (derivado a humano)" : ""}`,
   );
+
+  // 10. Aviso push (payload mínimo, sin contenido del chat). Ya estamos dentro
+  // del after(): no demora la respuesta a Meta ni alarga la ejecución.
+  if (pushReason) {
+    const nombre = lead.nombre ?? "Sin nombre";
+    await sendPushToAll({
+      title: pushReason === "intervencion" ? "Un chat necesita un vendedor" : "Lead caliente",
+      body: pushInteres ? `${nombre} · ${pushInteres}` : nombre,
+      url: `/dashboard?lead=${lead.id}`,
+      tag: lead.id,
+    });
+  }
 }
 
 async function saveBotMessage(

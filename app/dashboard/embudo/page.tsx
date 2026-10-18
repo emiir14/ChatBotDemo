@@ -4,9 +4,11 @@ import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { useMemo, useState, type JSX } from "react";
 import useSWR from "swr";
-import { Flame, Inbox, MessagesSquare, PhoneForwarded, UserCheck } from "lucide-react";
+import { Bot, Flame, Inbox, MessagesSquare, MoveHorizontal, PhoneForwarded, Trash2, UserCheck } from "lucide-react";
 import { Shell } from "@/components/dashboard/Header";
-import { ErrorBox, TempBadge } from "@/components/dashboard/ui";
+import { Button } from "@/components/ui/Button";
+import { ConfirmDialog, ErrorBox, TempBadge } from "@/components/dashboard/ui";
+import { Segmented } from "@/components/ui/Segmented";
 import { timeAgo } from "@/lib/format";
 import type { LeadRow, LeadsResponse } from "@/components/dashboard/types";
 
@@ -36,28 +38,38 @@ const COLUMNS = [
 export default function EmbudoPage(): JSX.Element {
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [confirm, setConfirm] = useState<LeadRow | null>(null);
   const [temp, setTemp] = useState<"all" | "caliente" | "tibio" | "frio">("all");
   const { data, error, mutate } = useSWR<LeadsResponse>("/api/dashboard/leads?limit=100", json);
 
   const grouped = useMemo(() => {
     const map: Record<string, LeadRow[]> = { nuevo: [], en_conversacion: [], derivado: [], recontactado: [] };
     const needle = q.trim().toLowerCase();
+    const digits = needle.replace(/\D/g, "");
     for (const l of data?.items ?? []) {
       if (temp !== "all" && l.temperatura !== temp) continue;
-      if (
-        needle &&
-        !(l.nombre ?? "").toLowerCase().includes(needle) &&
-        !l.telefono.replace(/\D/g, "").includes(needle.replace(/\D/g, ""))
-      ) {
-        continue;
+      if (needle) {
+        const texto = [l.nombre ?? "", l.auto_interes ?? "", l.atendido_por ?? "", l.temperatura]
+          .join(" ")
+          .toLowerCase();
+        const telDigits = l.telefono.replace(/\D/g, "");
+        const match = texto.includes(needle) || (digits.length > 0 && telDigits.includes(digits));
+        if (!match) continue;
       }
       (map[l.estado] ?? map.nuevo).push(l);
     }
     return map;
   }, [data, q, temp]);
 
+  async function deleteLead(id: string): Promise<void> {
+    const res = await fetch(`/api/dashboard/lead/${id}`, { method: "DELETE" });
+    if (!res.ok) return;
+    if (openLeadId === id) setOpenLeadId(null);
+    await mutate();
+  }
+
   return (
-    <Shell siteName="Embudo" hasDemoData={false}>
+    <Shell siteName="Embudo">
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pb-16 pt-5">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Embudo de ventas</h1>
@@ -72,21 +84,18 @@ export default function EmbudoPage(): JSX.Element {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <div className="flex gap-1.5" role="group" aria-label="Filtrar por temperatura">
-            {(["all", "caliente", "tibio", "frio"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTemp(t)}
-                aria-pressed={temp === t}
-                title={t === "all" ? "Ver todas las temperaturas" : `Ver solo ${t}`}
-                className={`min-h-[36px] rounded-full px-3 text-xs font-bold transition-colors ${
-                  temp === t ? "bg-(--accent) text-(--accent-ink)" : "bg-(--surface-3) text-(--ink-2)"
-                }`}
-              >
-                {t === "all" ? "Todas" : t[0].toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            ariaLabel="Filtrar por temperatura"
+            variant="pills"
+            value={temp}
+            onChange={(t) => setTemp(t)}
+            options={[
+              { value: "all", label: "Todas", title: "Ver todas las temperaturas" },
+              { value: "caliente", label: "Caliente", title: "Ver solo caliente" },
+              { value: "tibio", label: "Tibio", title: "Ver solo tibio" },
+              { value: "frio", label: "Frío", title: "Ver solo frío" },
+            ]}
+          />
         </div>
         {error ? (
           <ErrorBox message="Revisá tu conexión." onRetry={() => mutate()} />
@@ -95,8 +104,18 @@ export default function EmbudoPage(): JSX.Element {
             {[0, 1, 2, 3].map((i) => <div key={i} className="card p-3"><div className="skeleton h-24" /></div>)}
           </div>
         ) : (
-          <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
-            {COLUMNS.map((c, ci) => (
+          <>
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-(--ink-2) lg:hidden">
+              <MoveHorizontal size={14} aria-hidden="true" />
+              Deslizá para ver las otras etapas
+            </p>
+            <div className="relative">
+              <div
+                className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-(--surface) to-transparent lg:hidden"
+                aria-hidden="true"
+              />
+              <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
+                {COLUMNS.map((c, ci) => (
               <section key={c.key} aria-label={c.label} className="w-[80vw] max-w-[300px] shrink-0 snap-start rounded-2xl bg-(--surface-3)/70 p-2.5 lg:w-auto lg:max-w-none">
                 <header className="sticky top-0 flex items-center gap-2 bg-(--surface-3)/70 px-1.5 pb-2 backdrop-blur">
                   <c.icon size={15} className="text-(--ink-2)" aria-hidden="true" />
@@ -113,24 +132,42 @@ export default function EmbudoPage(): JSX.Element {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, delay: Math.min(ci * 0.05 + i * 0.02, 0.4) }}
                     >
-                      <button
-                        onClick={() => setOpenLeadId(l.id)}
-                        title={`Abrir conversación de ${l.nombre ?? "este lead"}`}
-                        className="card lift w-full p-2.5 text-left"
-                      >
-                        <span className="flex items-center justify-between gap-1.5">
-                          <span className="truncate text-[0.85rem] font-bold">{l.nombre ?? "Sin nombre"}</span>
-                          <TempBadge value={l.temperatura} />
-                        </span>
-                        <span className="mt-0.5 block truncate text-xs text-(--ink-2)">
-                          {l.auto_interes ?? "Sin interés"} · <span className="tnum">{timeAgo(l.last_customer_message_at ?? l.created_at)}</span>
-                        </span>
-                        {l.requiere_humano && (
-                          <span className="badge badge-hot mt-1">
-                            <Flame size={11} aria-hidden="true" /> Asesor
+                      <div className="card lift relative w-full">
+                        <button
+                          onClick={() => setOpenLeadId(l.id)}
+                          title={`Abrir conversación de ${l.nombre ?? "este lead"}`}
+                          className="block w-full p-2.5 text-left"
+                        >
+                          <span className="flex items-center justify-between gap-1.5 pr-10">
+                            <span className="truncate text-[0.85rem] font-bold">{l.nombre ?? "Sin nombre"}</span>
+                            <TempBadge value={l.temperatura} />
                           </span>
-                        )}
-                      </button>
+                          <span className="mt-0.5 block truncate text-xs text-(--ink-2)">
+                            {l.auto_interes ?? "Sin interés"} · <span className="tnum">{timeAgo(l.last_customer_message_at ?? l.created_at)}</span>
+                          </span>
+                          {l.requiere_humano && (
+                            <span className="badge badge-hot mt-1">
+                              <Flame size={11} aria-hidden="true" /> Asesor
+                            </span>
+                          )}
+                          {l.estado === "recontactado" && (
+                            <span className="badge badge-neutral mt-1" title={l.recontactado_agente_at ? "Recontactado por un agente (WhatsApp)" : "Recontactado por el bot"}>
+                              {l.recontactado_agente_at ? <UserCheck size={11} aria-hidden="true" /> : <Bot size={11} aria-hidden="true" />}
+                              {l.recontactado_agente_at ? "Recontacto agente" : "Recontacto bot"}
+                            </span>
+                          )}
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="absolute right-1.5 top-1.5"
+                          onClick={() => setConfirm(l)}
+                          aria-label={`Eliminar lead ${l.nombre ?? l.telefono}`}
+                          tooltip="Eliminar lead (borra la conversación)"
+                        >
+                          <Trash2 size={13} aria-hidden="true" />
+                        </Button>
+                      </div>
                     </motion.li>
                   ))}
                   {grouped[c.key].length === 0 && (
@@ -141,10 +178,31 @@ export default function EmbudoPage(): JSX.Element {
                   )}
                 </ul>
               </section>
-            ))}
-          </div>
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </main>
+      {confirm && (
+        <ConfirmDialog
+          title="Eliminar lead"
+          danger
+          confirmLabel="Eliminar"
+          message={
+            <>
+              ¿Eliminar a <strong>{confirm.nombre ?? confirm.telefono}</strong> y toda su conversación?
+              Es permanente. Si vuelve a escribir, el bot lo trata como primer contacto.
+            </>
+          }
+          onConfirm={() => {
+            const id = confirm.id;
+            setConfirm(null);
+            void deleteLead(id);
+          }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
       <LeadDrawer
         leadId={openLeadId}
         onClose={() => setOpenLeadId(null)}

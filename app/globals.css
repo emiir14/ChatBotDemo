@@ -47,6 +47,12 @@
   --shadow-card: 0 1px 2px rgb(28 25 23 / 0.05), 0 4px 16px -8px rgb(28 25 23 / 0.12);
   --bubble-bot: #ffffff;
   --bubble-me: #dcf2e5;
+  /* Paleta de gráficos (accesible, distinguible en claro/oscuro) */
+  --chart-1: #0e7a4f;
+  --chart-2: #2563eb;
+  --chart-3: #b45309;
+  --chart-4: #b91c1c;
+  --chart-5: #475569;
 }
 
 .dark {
@@ -72,6 +78,11 @@
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
   --bubble-bot: #292524;
   --bubble-me: #14342a;
+  --chart-1: #34b37a;
+  --chart-2: #60a5fa;
+  --chart-3: #e3a008;
+  --chart-4: #f87171;
+  --chart-5: #8fa3b8;
 }
 
 @theme inline {
@@ -104,35 +115,79 @@ button, [role="button"], summary {
   cursor: pointer;
 }
 
-/* ---------- Controles base (en capa components: los utilities los pisan) ---------- */
+/* ---------- Botones: sistema central (única fuente de estilos) ----------
+ * Norma: todo botón usa la base .btn + una variante (primary/solid/ghost/
+ * danger) + un tamaño (sm/xs/icon/icon-sm). El tooltip se declara con
+ * [data-tip]. Todos los colores salen de tokens, así que el modo claro/oscuro
+ * funciona solo. No escribas estilos de botón fuera de acá. */
 @layer components {
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   min-height: 44px;
   padding: 0.55rem 1rem;
   border-radius: var(--radius-s);
   font-weight: 600;
   font-size: 0.9rem;
+  line-height: 1.15;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background-color 150ms, border-color 150ms, transform 150ms;
+  white-space: nowrap;
+  transition: background-color 150ms, border-color 150ms, color 150ms, box-shadow 150ms, transform 150ms;
 }
-.btn:active { transform: translateY(1px); }
+.btn > svg { flex-shrink: 0; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.btn-primary { background: var(--accent); color: var(--accent-ink); }
+/* Primaria: la acción más importante de la pantalla. */
+.btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 .btn-primary:hover:not(:disabled) { background: var(--accent-strong); }
-.btn-ghost { background: transparent; color: var(--ink-2); border-color: var(--line); }
-.btn-ghost:hover:not(:disabled) { border-color: var(--ink-3); color: var(--ink); }
-/* Sólido suave: visible en ambos modos (paginación, acciones secundarias) */
-.btn-solid { background: var(--surface-2); color: var(--ink); border-color: var(--line); font-weight: 700; }
-.btn-solid:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); }
-.dark .btn-solid:hover:not(:disabled) { color: var(--accent); }
+/* Secundaria: visible sobre el fondo de la página. */
+.btn-solid { background: var(--surface-2); color: var(--ink); border-color: var(--line); font-weight: 700; box-shadow: 0 1px 2px rgb(28 25 23 / 0.07); }
+.btn-solid:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); box-shadow: 0 2px 6px -2px rgb(28 25 23 / 0.16); }
+/* Terciaria: vive dentro de tarjetas/filas; con borde para no perderse. */
+.btn-ghost { background: var(--surface-2); color: var(--ink); border-color: var(--line); }
+.btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+/* Destructiva: eliminar o vaciar. */
+.btn-danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.dark .btn-solid, .dark .btn-ghost { box-shadow: none; }
+.dark .btn-solid:hover:not(:disabled), .dark .btn-ghost:hover:not(:disabled) { color: var(--accent); }
+/* Tamaños */
 .btn-sm { min-height: 36px; padding: 0.3rem 0.7rem; font-size: 0.83rem; }
-/* Extra compacto (controles inline como el umbral de stock) */
 .btn-xs { min-height: 30px; padding: 0.15rem 0.55rem; font-size: 0.78rem; }
+/* Cuadrados solo ícono */
+.btn-icon { width: 44px; height: 44px; padding: 0; gap: 0; }
+.btn-icon-sm { width: 36px; height: 36px; padding: 0; gap: 0; }
+
+/* Tooltip central: cualquier .btn con [data-tip] lo muestra al pasar o enfocar. */
+.btn[data-tip] { position: relative; }
+.btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translate(-50%, 2px);
+  width: max-content;
+  max-width: 15rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease 260ms, transform 120ms ease 260ms;
+  z-index: 70;
+}
+.btn[data-tip]:hover::after,
+.btn[data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+.btn[data-tip-pos="bottom"]::after { top: calc(100% + 7px); bottom: auto; }
 
 .input, .select, .textarea {
   width: 100%;
@@ -274,15 +329,6 @@ button, [role="button"], summary {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
-}
-.login-card button {
-  margin-top: 0.75rem;
-  min-height: 44px;
-  border-radius: var(--radius-s);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
-  cursor: pointer;
 }
 .login-error {
   color: var(--danger);

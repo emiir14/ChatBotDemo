@@ -13,13 +13,16 @@ const sendSchema = z.object({
   step: z.literal("send"),
   text: z.string().min(1).max(1000),
 });
+const agentSchema = z.object({ leadId: z.string().uuid(), step: z.literal("agente") });
 
 /**
  * POST /api/dashboard/recontact
  * - { leadId, step: "draft" } → la IA genera un seguimiento (editable).
- * - { leadId, step: "send", text } → envía. Si el lead es demo
+ * - { leadId, step: "send", text } → envía (bot). Si el lead es demo
  *   (origen_demo = true) se SIMULA: se guarda en messages y NUNCA se llama
  *   a Meta. Si es real y venció la ventana de 24 hs, se rechaza.
+ * - { leadId, step: "agente" } → registra que UN AGENTE lo recontactó
+ *   (botón WhatsApp). No envía nada: solo marca el lead.
  */
 export async function POST(req: Request): Promise<NextResponse> {
   let body: unknown;
@@ -110,6 +113,27 @@ export async function POST(req: Request): Promise<NextResponse> {
       .update({ last_bot_reply_at: new Date().toISOString(), estado: "recontactado" })
       .eq("id", leadRow.id);
     return NextResponse.json({ ok: true, simulated: false });
+  }
+
+  if (step === "agente") {
+    const parsed = agentSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+    }
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        estado: "recontactado",
+        recontactado_agente_at: new Date().toISOString(),
+      })
+      .eq("id", parsed.data.leadId);
+    if (error) {
+      return NextResponse.json(
+        { error: `No se pudo registrar el recontacto: ${error.message}` },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: "step inválido" }, { status: 400 });

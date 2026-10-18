@@ -4,6 +4,7 @@ import { useState, type FormEvent, type JSX } from "react";
 import useSWR from "swr";
 import { Pencil, Plus } from "lucide-react";
 import { Shell } from "@/components/dashboard/Header";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { EmptyBox, ErrorBox, SectionTitle } from "@/components/dashboard/ui";
 import type { FinancingOption } from "@/lib/financing";
 
@@ -160,10 +161,12 @@ export default function FinanciacionPage(): JSX.Element {
     setForm((f) => ({ ...f, [k]: v }));
 
   return (
-    <Shell siteName="Financiación" hasDemoData={false}>
+    <Shell siteName="Financiación">
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 pb-16 pt-5">
         <div className="flex flex-wrap items-center gap-2">
-          <a href="/dashboard" className="btn btn-ghost btn-sm">← Panel</a>
+          <ButtonLink href="/dashboard" variant="ghost" size="sm" tooltip="Volver al panel general">
+            ← Panel
+          </ButtonLink>
           <h1 className="text-xl font-bold tracking-tight">Planes de financiación</h1>
         </div>
 
@@ -173,9 +176,9 @@ export default function FinanciacionPage(): JSX.Element {
         </section>
 
         <div>
-          <button className="btn btn-primary" onClick={openCreate} title="Agregar un plan de financiación">
+          <Button variant="primary" onClick={openCreate} tooltip="Agregar un plan de financiación">
             <Plus size={16} aria-hidden="true" /> Agregar plan
-          </button>
+          </Button>
         </div>
 
         {error ? (
@@ -205,20 +208,20 @@ export default function FinanciacionPage(): JSX.Element {
                     )}
                     {o.requisitos && <p className="mt-1 text-xs text-(--ink-2)">{o.requisitos}</p>}
                   </div>
-                  <button className="btn btn-ghost btn-sm shrink-0" onClick={() => openEdit(o)} aria-label={`Editar ${o.nombre}`} title="Editar plan">
+                  <Button variant="ghost" size="sm" className="shrink-0" onClick={() => openEdit(o)} aria-label={`Editar ${o.nombre}`} tooltip="Editar plan">
                     <Pencil size={14} aria-hidden="true" /> Editar
-                  </button>
+                  </Button>
                 </div>
-                <button
-                  onClick={() => toggle(o)}
+                <Button
+                  variant={o.activo ? "primary" : "solid"}
+                  size="xs"
+                  className="mt-2.5"
                   aria-pressed={o.activo}
-                  title={o.activo ? "Desactivar: el bot deja de citarlo" : "Activar: el bot lo cita"}
-                  className={`mt-2.5 min-h-[36px] rounded-md px-3 text-xs font-bold transition-colors ${
-                    o.activo ? "bg-(--accent) text-(--accent-ink)" : "bg-(--surface-3) text-(--ink-2)"
-                  }`}
+                  onClick={() => toggle(o)}
+                  tooltip={o.activo ? "Desactivar: el bot deja de citarlo" : "Activar: el bot lo cita"}
                 >
                   {o.activo ? "Activo · lo cita el bot" : "Inactivo"}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -288,12 +291,12 @@ export default function FinanciacionPage(): JSX.Element {
               </label>
               {formError && <p role="alert" className="col-span-2 text-sm font-semibold text-(--danger)">{formError}</p>}
               <div className="col-span-2 flex gap-2">
-                <button type="submit" className="btn btn-primary flex-1" disabled={saving}>
+                <Button type="submit" variant="primary" className="flex-1" disabled={saving} tooltip="Guardar el plan de financiación">
                   {saving ? "Guardando…" : "Guardar"}
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>
+                </Button>
+                <Button variant="ghost" tooltip="Cerrar sin guardar" onClick={() => setModal(null)}>
                   Cancelar
-                </button>
+                </Button>
               </div>
             </form>
           </div>

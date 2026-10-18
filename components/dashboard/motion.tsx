@@ -9,26 +9,22 @@ import type { ActivityItem } from "@/lib/activity";
 /** Número que cuenta hacia arriba al aparecer (respeta reduced-motion). */
 export function CountUp({ value, format }: { value: number; format: (n: number) => string }): JSX.Element {
   const reduce = useReducedMotion();
-  const [display, setDisplay] = useState(reduce ? value : 0);
+  const [display, setDisplay] = useState(0);
   const raf = useRef(0);
   useEffect(() => {
-    if (reduce) {
-      setDisplay(value);
-      return;
-    }
-    const from = 0;
+    if (reduce) return;
     const start = performance.now();
     const dur = 700;
     const tick = (t: number): void => {
       const p = Math.min(1, (t - start) / dur);
       const eased = 1 - Math.pow(1 - p, 3);
-      setDisplay(from + (value - from) * eased);
+      setDisplay(value * eased);
       if (p < 1) raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
   }, [value, reduce]);
-  return <span className="tnum">{format(display)}</span>;
+  return <span className="tnum">{format(reduce ? value : display)}</span>;
 }
 
 /** Entrada escalonada para tarjetas. */
@@ -58,10 +54,14 @@ interface KpiProps {
   delay?: number;
   /** Tono del número (default: tinta). */
   tone?: "ink" | "green";
+  /** Variación vs período anterior (▲/▼ + %). */
+  delta?: { pct: number; up: boolean } | null;
+  /** Si subir es bueno (default true). "Fuera de hora" p. ej. es al revés. */
+  deltaHigherIsBetter?: boolean;
 }
 
 /** Tarjeta KPI: chip de ícono, número animado y sparkline. */
-export function KpiCard({ icon, tint, label, value, format, text, sub, spark, delay = 0, tone = "ink" }: KpiProps): JSX.Element {
+export function KpiCard({ icon, tint, label, value, format, text, sub, spark, delay = 0, tone = "ink", delta = null, deltaHigherIsBetter = true }: KpiProps): JSX.Element {
   return (
     <FadeIn delay={delay}>
       <div className="card flex h-full flex-col gap-1 p-4">
@@ -79,6 +79,17 @@ export function KpiCard({ icon, tint, label, value, format, text, sub, spark, de
           <p className={`text-[1.7rem] font-bold leading-none tracking-tight ${tone === "green" ? "text-(--ok)" : ""}`} title={`${label}: ${format(value)}`}>
             <CountUp value={value} format={format} />
           </p>
+        )}
+        {delta && (
+          <span
+            className="tnum flex items-center gap-1 text-[0.72rem] font-semibold"
+            style={{ color: (delta.up === deltaHigherIsBetter) ? "var(--ok)" : "var(--danger)" }}
+            title="Variación vs período anterior"
+          >
+            <span aria-hidden="true">{delta.up ? "▲" : "▼"}</span>
+            {delta.up ? "+" : "−"}{Math.abs(Math.round(delta.pct))}%
+            <span className="font-normal text-(--ink-3)">vs anterior</span>
+          </span>
         )}
         {sub && <span className="text-[0.72rem] text-(--ink-2)">{sub}</span>}
         {spark && spark.length > 1 && <Sparkline data={spark} />}

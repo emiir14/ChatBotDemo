@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { logStockChange, touchStockSettings, vehicleInputSchema } from "@/lib/stock-server";
+import { logStockChange, touchStockSettings, vehicleInputSchema, DEFAULT_STALE_DAYS } from "@/lib/stock-server";
 
 /** GET /api/dashboard/stock — lista + frescura (para la alerta). */
 export async function GET(): Promise<NextResponse> {
@@ -20,7 +20,7 @@ export async function GET(): Promise<NextResponse> {
     vehicles: vehicles ?? [],
     settings: {
       updated_at: s.updated_at ?? null,
-      stale_days: s.stale_days ?? 2,
+      stale_days: s.stale_days ?? DEFAULT_STALE_DAYS,
     },
   });
 }

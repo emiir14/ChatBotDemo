@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type JSX } from "react";
-import { UserCheck } from "lucide-react";
+import { Check, UserCheck } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 /** Botón "Atendido" que pide tipear quién atendió antes de confirmar. */
 export function AttendButton({
@@ -17,13 +18,15 @@ export function AttendButton({
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  async function confirm(): Promise<void> {
+  async function confirm(atendidoPor: string): Promise<void> {
+    const value = atendidoPor.trim();
+    if (!value) return;
     setSaving(true);
     try {
       const res = await fetch("/api/dashboard/attend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId, atendidoPor: name.trim() || "dueño" }),
+        body: JSON.stringify({ leadId, atendidoPor: value }),
       });
       if (!res.ok) throw new Error();
       setAsking(false);
@@ -38,30 +41,36 @@ export function AttendButton({
 
   if (!asking) {
     return (
-      <button className="btn btn-ghost btn-sm flex-1 sm:flex-none" onClick={() => setAsking(true)} title="Sacar de la cola: registra quién lo atendió">
+      <Button variant="ghost" size="sm" className="flex-1 sm:flex-none" onClick={() => setAsking(true)} tooltip="Sacar de la cola: registra quién lo atendió">
         <UserCheck size={14} aria-hidden="true" /> Atendido
-      </button>
+      </Button>
     );
   }
 
   return (
-    <span className="flex flex-1 items-center gap-1.5 sm:flex-none">
+    <span className="flex flex-1 flex-wrap items-center gap-1.5 sm:flex-none">
       <input
         className="input min-w-0 flex-1"
         style={{ minHeight: 36 }}
-        placeholder="¿Quién atendió?"
-        aria-label="Nombre de quien atendió"
+        placeholder="Nombre del agente"
+        aria-label="Nombre del agente que atendió"
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") confirm();
-          if (e.key === "Escape") setAsking(false);
+          if (e.key === "Enter") confirm(name);
+          if (e.key === "Escape") {
+            setAsking(false);
+            setName("");
+          }
         }}
       />
-      <button className="btn btn-primary btn-sm" disabled={saving} onClick={confirm} title="Confirmar">
+      <Button variant="primary" size="sm" disabled={saving || !name.trim()} onClick={() => confirm(name)} tooltip="Confirmar el nombre de quien atendió">
         OK
-      </button>
+      </Button>
+      <Button variant="ghost" size="sm" disabled={saving} onClick={() => confirm("Revisado")} tooltip="Marcar el chat como revisado, sin agente">
+        <Check size={14} aria-hidden="true" /> Revisado
+      </Button>
     </span>
   );
 }

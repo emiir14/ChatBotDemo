@@ -1,21 +1,30 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { periodRange } from "@/lib/metrics";
 
 /**
  * Metadatos del stock en una sola llamada:
- * GET /api/dashboard/stock/meta → { settings, changes }
+ * GET /api/dashboard/stock/meta?period=today|7d|30d|all
+ *   → { settings, changes }  (el historial se filtra por período)
  * PATCH /api/dashboard/stock/meta { stale_days } → umbral configurable.
  */
-export async function GET(): Promise<NextResponse> {
+
+const periodSchema = z.enum(["today", "7d", "30d", "all"]);
+
+export async function GET(req: Request): Promise<NextResponse> {
+  const url = new URL(req.url);
+  const period = periodSchema.catch("all").parse(url.searchParams.get("period") ?? undefined);
   const supabase = getSupabaseAdmin();
+
+  const base = supabase
+    .from("stock_changes")
+    .select("id,codigo,accion,detalle,actor,created_at");
+  const inPeriod = period === "all" ? base : base.gte("created_at", periodRange(period).from.toISOString());
+
   const [{ data: settings }, { data: changes, error }] = await Promise.all([
     supabase.from("stock_settings").select("updated_at,stale_days").eq("id", 1).maybeSingle(),
-    supabase
-      .from("stock_changes")
-      .select("id,codigo,accion,detalle,actor,created_at")
-      .order("created_at", { ascending: false })
-      .limit(50),
+    inPeriod.order("created_at", { ascending: false }).limit(50),
   ]);
   if (error) {
     return NextResponse.json(

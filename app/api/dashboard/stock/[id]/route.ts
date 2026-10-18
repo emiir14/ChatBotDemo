@@ -55,3 +55,40 @@ export async function PATCH(
   await touchStockSettings(supabase);
   return NextResponse.json({ ok: true });
 }
+
+/** DELETE /api/dashboard/stock/[id] — baja definitiva (resetea la frescura). */
+export async function DELETE(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const { id } = await ctx.params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ error: "Vehículo inválido" }, { status: 400 });
+  }
+  const supabase = getSupabaseAdmin();
+  const { data: prev } = await supabase
+    .from("vehicles")
+    .select("codigo,marca,modelo,version")
+    .eq("id", id)
+    .maybeSingle();
+  if (!prev) {
+    return NextResponse.json({ error: "El vehículo no existe" }, { status: 404 });
+  }
+  const { error } = await supabase.from("vehicles").delete().eq("id", id);
+  if (error) {
+    return NextResponse.json(
+      { error: `No se pudo eliminar: ${error.message}` },
+      { status: 400 },
+    );
+  }
+  const p = prev as { codigo?: string; marca?: string; modelo?: string; version?: string };
+  await logStockChange(supabase, {
+    // vehicle_id va en null: la fila ya no existe (la FK es ON DELETE SET NULL).
+    vehicle_id: null,
+    codigo: p.codigo,
+    accion: "baja",
+    detalle: `Eliminado: ${[p.marca, p.modelo, p.version].filter(Boolean).join(" ")}`.trim(),
+  });
+  await touchStockSettings(supabase);
+  return NextResponse.json({ ok: true });
+}

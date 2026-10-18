@@ -2,6 +2,7 @@
 
 import { Suspense, useState, type FormEvent, type JSX } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/Button";
 
 /** Página de acceso al panel (ruta pública, protegida por throttle en API). */
 export default function LoginPage(): JSX.Element {
@@ -72,9 +73,9 @@ function LoginForm(): JSX.Element {
             {error}
           </p>
         )}
-        <button type="submit" disabled={loading}>
+        <Button type="submit" variant="primary" block disabled={loading} tooltip="Ingresar al panel">
           {loading ? "Ingresando…" : "Ingresar"}
-        </button>
+        </Button>
     </form>
   );
 }

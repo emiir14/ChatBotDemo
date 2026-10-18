@@ -2,8 +2,11 @@
 
 import { BarChart3, Boxes, CalendarDays, LayoutDashboard, LogOut, Moon, Percent, Sun, Trash2, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type JSX, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type JSX, type ReactNode } from "react";
+import { Button } from "@/components/ui/Button";
+import { PeriodFilter } from "./PeriodFilter";
 import type { PeriodKey } from "@/lib/metrics";
+import { todayCordobaDate } from "@/lib/time";
 
 export type Period = PeriodKey | "custom";
 
@@ -12,19 +15,31 @@ export interface CustomRange {
   to: string;
 }
 
-const PERIODS: Array<{ key: PeriodKey; label: string }> = [
-  { key: "today", label: "Hoy" },
-  { key: "7d", label: "7 días" },
-  { key: "30d", label: "30 días" },
-  { key: "all", label: "Todo" },
-];
-
 const NAV = [
   { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
   { href: "/dashboard/embudo", label: "Embudo", icon: BarChart3 },
   { href: "/dashboard/stock", label: "Stock", icon: Boxes },
   { href: "/dashboard/financiacion", label: "Financiación", icon: Percent },
 ];
+
+/** Pequeño store del tema oscuro: localStorage + listeners (sin setState en efectos). */
+const themeListeners = new Set<() => void>();
+function subscribeTheme(cb: () => void): () => void {
+  themeListeners.add(cb);
+  return () => {
+    themeListeners.delete(cb);
+  };
+}
+function getThemeSnapshot(): boolean {
+  return localStorage.getItem("theme") === "dark";
+}
+function getServerThemeSnapshot(): boolean {
+  return false;
+}
+function setTheme(dark: boolean): void {
+  localStorage.setItem("theme", dark ? "dark" : "light");
+  for (const listener of themeListeners) listener();
+}
 
 function Logo({ size = 34 }: { size?: number }): JSX.Element {
   return (
@@ -58,6 +73,7 @@ function CustomButton({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const todayStr = todayCordobaDate();
 
   function apply(): void {
     if (!from || !to) {
@@ -68,6 +84,10 @@ function CustomButton({
       setError("Desde debe ser anterior a hasta");
       return;
     }
+    if (to > todayStr) {
+      setError("No podés elegir una fecha futura");
+      return;
+    }
     onCustom(from, to);
     setOpen(false);
     setError(null);
@@ -75,33 +95,34 @@ function CustomButton({
 
   return (
     <span className="relative">
-      <button
+      <Button
+        variant={active ? "primary" : "solid"}
+        size="icon-sm"
         onClick={() => setOpen((o) => !o)}
         aria-pressed={active}
         aria-expanded={open}
-        title="Elegir un rango de fechas"
-        className={`flex min-h-[36px] items-center px-2.5 transition-colors ${
-          active ? "bg-(--accent) text-(--accent-ink)" : "text-(--ink-2)"
-        }`}
+        aria-label="Elegir un rango de fechas"
+        tooltip="Elegir un rango de fechas"
+        tooltipSide="bottom"
       >
         <CalendarDays size={15} aria-hidden="true" />
-      </button>
+      </Button>
       {open && (
         <span className="absolute right-0 top-10 z-50 flex w-56 flex-col gap-2 rounded-xl border border-(--line) bg-(--surface-2) p-3 shadow-xl">
           <label className="flex flex-col gap-1 text-xs font-bold">
             Desde
-            <input type="date" className="input" style={{ minHeight: 36 }} value={from} max={to || undefined}
+            <input type="date" className="input" style={{ minHeight: 36 }} value={from} max={to || todayStr}
               onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label className="flex flex-col gap-1 text-xs font-bold">
             Hasta
             <input type="date" className="input" style={{ minHeight: 36 }} value={to} min={from || undefined}
-              onChange={(e) => setTo(e.target.value)} />
+              onChange={(e) => setTo(e.target.value)} max={todayStr} />
           </label>
           {error && <span role="alert" className="text-xs font-semibold text-(--danger)">{error}</span>}
-          <button className="btn btn-primary btn-sm" onClick={apply}>
+          <Button variant="primary" size="sm" onClick={apply} tooltip="Aplicar el rango elegido">
             Aplicar
-          </button>
+          </Button>
         </span>
       )}
     </span>
@@ -114,7 +135,6 @@ function CustomButton({
  */
 export function Shell({
   siteName,
-  hasDemoData,
   period,
   onPeriod,
   custom,
@@ -127,7 +147,6 @@ export function Shell({
   extraActions,
 }: {
   siteName: string;
-  hasDemoData: boolean;
   period?: Period;
   onPeriod?: (p: Period) => void;
   /** Rango personalizado activo (muestra chip con opción de quitar). */
@@ -146,20 +165,14 @@ export function Shell({
   const pathname = usePathname();
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [dark, setDark] = useState(false);
+  const dark = useSyncExternalStore(subscribeTheme, getThemeSnapshot, getServerThemeSnapshot);
 
   useEffect(() => {
-    if (localStorage.getItem("theme") === "dark") {
-      setDark(true);
-      document.documentElement.classList.add("dark");
-    }
-  }, []);
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
   function toggleDark(): void {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("theme", next ? "dark" : "light");
+    setTheme(!dark);
   }
 
   async function logout(): Promise<void> {
@@ -176,13 +189,6 @@ export function Shell({
           <Logo />
           <div className="min-w-0">
             <p className="truncate text-[1.02rem] font-bold leading-tight tracking-tight">{siteName}</p>
-            <p className="flex items-center gap-1.5 text-xs text-white/70">
-              <span className="relative flex h-2 w-2" aria-hidden="true">
-                <span className="absolute h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              </span>
-              Bot activo
-            </p>
           </div>
         </div>
         <nav aria-label="Secciones" className="flex flex-col gap-1">
@@ -205,11 +211,6 @@ export function Shell({
             );
           })}
         </nav>
-        {hasDemoData && (
-          <p className="mt-4 rounded-xl bg-white/8 px-3 py-2 text-xs text-white/75">
-            Datos de demostración incluidos
-          </p>
-        )}
         <div className="mt-auto flex flex-col gap-1 border-t border-white/10 pt-3">
           <button
             onClick={toggleDark}
@@ -240,33 +241,13 @@ export function Shell({
               <Logo size={30} />
               <p className="max-w-[40vw] truncate text-[0.95rem] font-bold">{siteName}</p>
             </div>
-            <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-(--ink-2) lg:ml-0">
-              <span className="relative flex h-2 w-2" aria-hidden="true">
-                <span className="absolute h-full w-full animate-ping rounded-full bg-(--ok) opacity-60" />
-                <span className="h-2 w-2 rounded-full bg-(--ok)" />
-              </span>
-              <span className="hidden sm:inline">Bot activo</span>
-            </span>
-            {hasDemoData && (
-              <span className="badge badge-neutral">Datos de demostración</span>
-            )}
+            <span className="ml-auto lg:ml-0" aria-hidden="true" />
             {period && onPeriod && (
               <>
-                <div role="group" aria-label="Período" className="flex overflow-hidden rounded-lg border border-(--line)">
-                  {PERIODS.map((p) => (
-                    <button
-                      key={p.key}
-                      onClick={() => onPeriod(p.key)}
-                      aria-pressed={period === p.key}
-                      title={p.key === "all" ? "Todo el historial" : `Ver ${p.label.toLowerCase()}`}
-                      className={`min-h-[36px] px-2.5 text-[0.83rem] font-semibold transition-colors sm:px-3 sm:text-sm ${
-                        period === p.key ? "bg-(--accent) text-(--accent-ink)" : "text-(--ink-2)"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
+                <PeriodFilter
+                  value={period === "custom" ? null : period}
+                  onChange={(p) => onPeriod(p)}
+                />
                 {onCustom && (
                   <CustomButton active={period === "custom"} onCustom={onCustom} />
                 )}
@@ -286,9 +267,12 @@ export function Shell({
               confirmingReset ? (
                 <span className="flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border border-(--danger) px-2 py-1 text-xs font-bold">
                   ¿Vaciar {resetCount ?? ""} leads?
-                  <button
-                    className="min-h-[32px] rounded-md bg-(--danger) px-2.5 text-white"
+                  <Button
+                    variant="danger"
+                    size="xs"
                     disabled={resetting}
+                    tooltip="Confirmar: borra todos los leads de la demo"
+                    tooltipSide="bottom"
                     onClick={async () => {
                       setResetting(true);
                       try {
@@ -300,29 +284,36 @@ export function Shell({
                     }}
                   >
                     {resetting ? "…" : "Sí, vaciar"}
-                  </button>
-                  <button
-                    className="min-h-[32px] px-1.5 underline"
-                    onClick={() => setConfirmingReset(false)}
-                  >
+                  </Button>
+                  <Button variant="ghost" size="xs" tooltip="Cancelar" tooltipSide="bottom" onClick={() => setConfirmingReset(false)}>
                     No
-                  </button>
+                  </Button>
                 </span>
               ) : (
-                <button
-                  className="btn btn-ghost btn-sm"
+                <Button
+                  variant="solid"
+                  size="sm"
                   onClick={() => setConfirmingReset(true)}
-                  title="Vacía leads y mensajes (el stock queda). Para la demo en vivo."
+                  tooltip="Vacía leads y mensajes (el stock queda). Para la demo en vivo."
+                  tooltipSide="bottom"
                   aria-label="Vaciar panel"
                 >
                   <Trash2 size={15} aria-hidden="true" />
                   <span className="hidden sm:inline">Vaciar</span>
-                </button>
+                </Button>
               )
             )}
-            <button className="btn btn-ghost btn-sm lg:hidden" onClick={logout} aria-label="Cerrar sesión" title="Cerrar sesión del panel">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="lg:hidden"
+              onClick={logout}
+              aria-label="Cerrar sesión"
+              tooltip="Cerrar sesión del panel"
+              tooltipSide="bottom"
+            >
               <LogOut size={15} aria-hidden="true" />
-            </button>
+            </Button>
             {extraActions}
           </div>
         </header>

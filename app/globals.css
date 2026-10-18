@@ -161,14 +161,16 @@ button, [role="button"], summary {
 .btn-icon { width: 44px; height: 44px; padding: 0; gap: 0; }
 .btn-icon-sm { width: 36px; height: 36px; padding: 0; gap: 0; }
 
-/* Tooltip central: cualquier .btn con [data-tip] lo muestra al pasar o enfocar. */
+/* Tooltip central: cualquier .btn con [data-tip] lo muestra al pasar o enfocar.
+ * En reposo es `content: none`, así no genera caja ni estira el scroll de
+ * contenedores (tarjetas, columnas del embudo, tablas). */
 .btn[data-tip] { position: relative; }
 .btn[data-tip]::after {
-  content: attr(data-tip);
+  content: none;
   position: absolute;
   bottom: calc(100% + 7px);
   left: 50%;
-  transform: translate(-50%, 2px);
+  transform: translateX(-50%);
   width: max-content;
   max-width: 15rem;
   padding: 0.3rem 0.5rem;
@@ -180,13 +182,11 @@ button, [role="button"], summary {
   line-height: 1.25;
   text-align: center;
   white-space: normal;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 120ms ease 260ms, transform 120ms ease 260ms;
   z-index: 70;
 }
 .btn[data-tip]:hover::after,
-.btn[data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+.btn[data-tip]:focus-visible::after { content: attr(data-tip); }
 .btn[data-tip-pos="bottom"]::after { top: calc(100% + 7px); bottom: auto; }
 
 .input, .select, .textarea {

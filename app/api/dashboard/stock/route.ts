@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { logStockChange, touchStockSettings, vehicleInputSchema, DEFAULT_STALE_DAYS } from "@/lib/stock-server";
+import {
+  logStockChange,
+  touchStockSettings,
+  vehicleInputSchema,
+  nextVehicleCodigo,
+  DEFAULT_STALE_DAYS,
+} from "@/lib/stock-server";
 
 /** GET /api/dashboard/stock — lista + frescura (para la alerta). */
 export async function GET(): Promise<NextResponse> {
   const supabase = getSupabaseAdmin();
   const [{ data: vehicles, error }, { data: settings }] = await Promise.all([
-    supabase.from("vehicles").select("*").order("marca").order("modelo"),
+    supabase.from("vehicles").select("*").order("created_at", { ascending: false }),
     supabase.from("stock_settings").select("*").eq("id", 1).maybeSingle(),
   ]);
   if (error) {
@@ -41,9 +47,10 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
   }
   const supabase = getSupabaseAdmin();
+  const codigo = parsed.data.codigo.trim() || (await nextVehicleCodigo(supabase));
   const { data, error } = await supabase
     .from("vehicles")
-    .insert({ ...parsed.data, patente: parsed.data.patente || null })
+    .insert({ ...parsed.data, codigo, patente: parsed.data.patente || null })
     .select("id")
     .single();
   if (error) {
@@ -55,7 +62,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
   await logStockChange(supabase, {
     vehicle_id: (data as { id: string }).id,
-    codigo: parsed.data.codigo,
+    codigo,
     accion: "alta",
     detalle: `${parsed.data.marca} ${parsed.data.modelo} ${parsed.data.version}`.trim(),
   });

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import useSWR from "swr";
-import { Trash2 } from "lucide-react";
+import { Download, Search, Trash2 } from "lucide-react";
 import { Shell } from "@/components/dashboard/Header";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { EmptyBox, ErrorBox, SectionTitle } from "@/components/dashboard/ui";
@@ -18,6 +18,7 @@ import {
 } from "@/components/dashboard/Stock";
 import { ImportWizard } from "@/components/dashboard/ImportWizard";
 import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
+import { toCsv, downloadCsv } from "@/lib/csv";
 import { timeAgo } from "@/lib/format";
 import type { PeriodKey } from "@/lib/metrics";
 
@@ -28,7 +29,7 @@ interface StockResponse {
 
 interface MetaResponse {
   settings: { updated_at: string | null; stale_days: number };
-  changes: Array<{ id: string; codigo: string | null; accion: string; detalle: string; actor: string; created_at: string }>;
+  changes: Array<{ id: string; codigo: string | null; accion: string; detalle: string; created_at: string }>;
 }
 
 async function json<T>(url: string): Promise<T> {
@@ -84,11 +85,44 @@ export default function StockPage(): JSX.Element {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [soldConfirm, setSoldConfirm] = useState<{ id: string; codigo: string } | null>(null);
+  const [q, setQ] = useState("");
 
   const refresh = useCallback(() => {
     mutate();
     mutateMeta();
   }, [mutate, mutateMeta]);
+
+  const filtered = useMemo(() => {
+    const list = data?.vehicles ?? [];
+    const term = q.trim().toLowerCase();
+    if (!term) return list;
+    return list.filter((v) =>
+      [v.codigo, v.marca, v.modelo, v.version, v.patente ?? "", v.color, v.combustible]
+        .some((f) => f.toLowerCase().includes(term)),
+    );
+  }, [data, q]);
+
+  const exportStock = useCallback(() => {
+    if (!data) return;
+    const rows = filtered.map((v) => ({
+      codigo: v.codigo,
+      patente: v.patente ?? "",
+      marca: v.marca,
+      modelo: v.modelo,
+      version: v.version,
+      anio: v.anio,
+      km: v.km,
+      precio: v.precio,
+      moneda: v.moneda,
+      combustible: v.combustible,
+      transmision: v.transmision,
+      color: v.color,
+      estado: v.estado,
+      es_0km: v.es_0km ? "si" : "no",
+      descripcion: v.descripcion,
+    }));
+    downloadCsv("stock.csv", toCsv(rows));
+  }, [data, filtered]);
 
   useEffect(() => {
     if (!toast) return;
@@ -179,7 +213,11 @@ export default function StockPage(): JSX.Element {
           </ButtonLink>
           <h1 className="text-xl font-bold tracking-tight">Gestión de stock</h1>
           <span className="tnum ml-auto text-sm text-(--ink-2)">
-            {data ? `${data.vehicles.length} vehículos` : ""}
+            {data
+              ? q.trim() && filtered.length !== data.vehicles.length
+                ? `${filtered.length} de ${data.vehicles.length}`
+                : `${data.vehicles.length} vehículos`
+              : ""}
           </span>
         </div>
 
@@ -193,8 +231,27 @@ export default function StockPage(): JSX.Element {
 
         <section aria-label="Vehículos">
           <SectionTitle title="Vehículos" hint="Editá cualquier auto o cambiá su estado con un toque." />
-          <div className="mb-3">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             <AddButton onClick={() => { setFormError(null); setModal({ mode: "create" }); }} />
+            <div className="relative min-w-[12rem] flex-1">
+              <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-(--ink-3)" />
+              <input
+                className="input pl-9"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar por marca, modelo, patente o código…"
+                title="Busca por cualquier dato del auto. Escribí y filtra solo."
+                aria-label="Buscar en el stock"
+              />
+            </div>
+            <Button
+              variant="ghost"
+              onClick={exportStock}
+              disabled={filtered.length === 0}
+              tooltip="Descargar el stock en CSV (según la búsqueda actual)"
+            >
+              <Download size={16} aria-hidden="true" /> Exportar stock
+            </Button>
           </div>
           {error ? (
             <ErrorBox message="Revisá tu conexión." onRetry={() => mutate()} />
@@ -205,9 +262,11 @@ export default function StockPage(): JSX.Element {
             </div>
           ) : data.vehicles.length === 0 ? (
             <EmptyBox message="No hay vehículos. Agregá el primero o subí un archivo." />
+          ) : filtered.length === 0 ? (
+            <EmptyBox message="No hay autos que coincidan con la búsqueda." />
           ) : (
             <ul className="grid gap-2.5 md:grid-cols-2">
-              {data.vehicles.map((v) => (
+              {filtered.map((v) => (
                 <VehicleRow
                   key={v.id}
                   v={v}
@@ -225,7 +284,7 @@ export default function StockPage(): JSX.Element {
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="text-base font-bold tracking-tight">Historial</h2>
-              <p className="text-sm text-(--ink-2)">Quién cambió qué y cuándo.</p>
+              <p className="text-sm text-(--ink-2)">Qué cambió y cuándo.</p>
             </div>
             <PeriodFilter value={historyPeriod} onChange={setHistoryPeriod} />
           </div>
@@ -240,9 +299,7 @@ export default function StockPage(): JSX.Element {
                   <span className="badge badge-neutral">{ACCION_LABEL[c.accion] ?? c.accion}</span>
                   {c.codigo && <strong className="tnum">{c.codigo}</strong>}
                   <span className="min-w-0 flex-1 text-(--ink-2)">{c.detalle}</span>
-                  <span className="tnum text-xs text-(--ink-3)">
-                    {c.actor} · {timeAgo(c.created_at)}
-                  </span>
+                  <span className="tnum text-xs text-(--ink-3)">{timeAgo(c.created_at)}</span>
                 </li>
               ))}
             </ul>

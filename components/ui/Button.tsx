@@ -1,7 +1,8 @@
 "use client";
 
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, JSX, Ref } from "react";
+import { useCallback, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type JSX, type MutableRefObject, type Ref } from "react";
 import { cn } from "@/lib/utils";
+import { useTooltip } from "@/components/ui/Tooltip";
 
 /**
  * Botón canónico del panel. Única fuente de verdad de estilos: compone las
@@ -65,17 +66,47 @@ export function Button({
   type = "button",
   className,
   ref,
+  onMouseEnter,
+  onMouseLeave,
+  onFocus,
+  onBlur,
   ...rest
 }: ButtonProps): JSX.Element {
+  const { ref: tipRef, onShow, onHide, node: tipNode } = useTooltip(tooltip, tooltipSide);
+  const setRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      tipRef(node);
+      if (typeof ref === "function") ref(node);
+      else if (ref) (ref as MutableRefObject<HTMLButtonElement | null>).current = node;
+    },
+    [tipRef, ref],
+  );
   return (
-    <button
-      ref={ref}
-      type={type}
-      data-tip={tooltip}
-      data-tip-pos={tooltip ? (tooltipSide ?? "top") : undefined}
-      className={buttonClass({ variant, size, block, className })}
-      {...rest}
-    />
+    <>
+      <button
+        ref={setRef}
+        type={type}
+        className={buttonClass({ variant, size, block, className })}
+        onMouseEnter={(e) => {
+          onMouseEnter?.(e);
+          onShow();
+        }}
+        onMouseLeave={(e) => {
+          onMouseLeave?.(e);
+          onHide();
+        }}
+        onFocus={(e) => {
+          onFocus?.(e);
+          if (e.currentTarget.matches(":focus-visible")) onShow();
+        }}
+        onBlur={(e) => {
+          onBlur?.(e);
+          onHide();
+        }}
+        {...rest}
+      />
+      {tipNode}
+    </>
   );
 }
 
@@ -94,15 +125,45 @@ export function ButtonLink({
   tooltipSide,
   className,
   ref,
+  onMouseEnter,
+  onMouseLeave,
+  onFocus,
+  onBlur,
   ...rest
 }: ButtonLinkProps): JSX.Element {
+  const { ref: tipRef, onShow, onHide, node: tipNode } = useTooltip(tooltip, tooltipSide);
+  const setRef = useCallback(
+    (node: HTMLAnchorElement | null) => {
+      tipRef(node);
+      if (typeof ref === "function") ref(node);
+      else if (ref) (ref as MutableRefObject<HTMLAnchorElement | null>).current = node;
+    },
+    [tipRef, ref],
+  );
   return (
-    <a
-      ref={ref}
-      data-tip={tooltip}
-      data-tip-pos={tooltip ? (tooltipSide ?? "top") : undefined}
-      className={buttonClass({ variant, size, block, className })}
-      {...rest}
-    />
+    <>
+      <a
+        ref={setRef}
+        className={buttonClass({ variant, size, block, className })}
+        onMouseEnter={(e) => {
+          onMouseEnter?.(e);
+          onShow();
+        }}
+        onMouseLeave={(e) => {
+          onMouseLeave?.(e);
+          onHide();
+        }}
+        onFocus={(e) => {
+          onFocus?.(e);
+          if (e.currentTarget.matches(":focus-visible")) onShow();
+        }}
+        onBlur={(e) => {
+          onBlur?.(e);
+          onHide();
+        }}
+        {...rest}
+      />
+      {tipNode}
+    </>
   );
 }

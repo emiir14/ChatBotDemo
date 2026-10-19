@@ -109,6 +109,7 @@ export default function DashboardPage(): JSX.Element {
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const visible = useVisible();
   const knownIds = useRef<Set<string> | null>(null);
+  const knownTotal = useRef<number | null>(null);
   const prevChange = useRef<string | null>(null);
   const toastId = useRef(0);
 
@@ -223,12 +224,19 @@ export default function DashboardPage(): JSX.Element {
   useEffect(() => {
     if (!leads || !leadsDefaultView) return;
     const ids = new Set(leads.items.map((l) => l.id));
-    if (knownIds.current === null) {
+    if (knownIds.current === null || knownTotal.current === null) {
       knownIds.current = ids;
+      knownTotal.current = leads.total;
       return;
     }
-    const fresh = leads.items.filter((l) => !knownIds.current!.has(l.id));
+    // Un lead nuevo hace crecer el total. Al eliminar uno el total baja y el
+    // listado se recompone (entra uno de la página siguiente): eso NO es un
+    // lead nuevo, por eso solo detectamos cuando el total creció.
+    const fresh = leads.total > knownTotal.current
+      ? leads.items.filter((l) => !knownIds.current!.has(l.id))
+      : [];
     knownIds.current = ids;
+    knownTotal.current = leads.total;
     if (fresh.length > 0) {
       const first = fresh[0];
       const label = first.nombre ?? "Sin nombre";
@@ -255,7 +263,8 @@ export default function DashboardPage(): JSX.Element {
       pushToast("No se pudo vaciar");
       return;
     }
-    knownIds.current = new Set();
+    knownIds.current = null;
+    knownTotal.current = null;
     setNewIds(new Set());
     pushToast("Panel vaciado. Escribí al bot para verlo llenarse en vivo.");
     refreshAll();
@@ -380,12 +389,12 @@ export default function DashboardPage(): JSX.Element {
               <KpiCard
                 icon={<Zap size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
                 label="Consultas" value={m.consultas.value} format={(n) => String(Math.round(n))}
-                delta={m.consultas.delta} sub={summary.periodLabel} delay={0}
+                sub={summary.periodLabel} delay={0}
               />
               <KpiCard
                 icon={<MessageSquareText size={16} className="text-(--accent-strong) dark:text-(--accent)" />} tint="var(--accent-soft)"
                 label="Atendidas" value={m.atendidas.value} format={(n) => String(Math.round(n))}
-                delta={m.atendidas.delta} spark={summary.daily} delay={0.03}
+                spark={summary.daily} delay={0.03}
               />
               <KpiCard
                 icon={<UserCheck size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
@@ -395,17 +404,17 @@ export default function DashboardPage(): JSX.Element {
               <KpiCard
                 icon={<Flame size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="Calientes" value={m.calientes.value} format={(n) => String(Math.round(n))}
-                delta={m.calientes.delta} delay={0.09}
+                delay={0.09}
               />
               <KpiCard
                 icon={<PhoneForwarded size={16} className="text-(--hot)" />} tint="var(--hot-soft)"
                 label="Derivados" value={m.derivados.value} format={(n) => String(Math.round(n))}
-                delta={m.derivados.delta} sub="al asesor" delay={0.12}
+                sub="al asesor" delay={0.12}
               />
               <KpiCard
                 icon={<MoonStar size={16} className="text-indigo-700 dark:text-indigo-300" />} tint="var(--cold-soft)"
                 label="Fuera de hora" value={m.fueraHorario.value} format={(n) => String(Math.round(n))}
-                delta={m.fueraHorario.delta} deltaHigherIsBetter={false} tone="green" delay={0.15}
+                tone="green" delay={0.15}
               />
               <KpiCard
                 icon={<Timer size={16} className="text-sky-700 dark:text-sky-300" />} tint="var(--cold-soft)"

@@ -30,6 +30,11 @@ export async function PATCH(
   const supabase = getSupabaseAdmin();
   const patch: Record<string, unknown> = { ...parsed.data };
   if (patch.patente === "") patch.patente = null;
+  // El código interno vacío nunca borra la identidad del vehículo.
+  if (patch.codigo === "") delete patch.codigo;
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  }
   const { data: prev } = await supabase
     .from("vehicles")
     .select("codigo,estado")

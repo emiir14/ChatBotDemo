@@ -31,6 +31,9 @@ const ESTADOS = [
   { key: "vendido", label: "Vendido" },
 ] as const;
 
+/** Opciones de combustible (coinciden con los valores históricos del stock). */
+const COMBUSTIBLES = ["Nafta", "Diesel", "GNC", "Híbrido", "Eléctrico"] as const;
+
 /** Botones rápidos de estado (táctiles, mobile-first). */
 export function EstadoButtons({
   value,
@@ -179,26 +182,32 @@ export function VehicleModal({
           }}
         >
           <label className="flex flex-col gap-1 text-xs font-semibold">
-            Código interno*
-            <input className="input" value={form.codigo} disabled={lockCodigo} required maxLength={30}
+            Código interno
+            <input className="input" value={form.codigo} disabled={lockCodigo} maxLength={30}
               onChange={(e) => set("codigo", e.target.value.toUpperCase().replace(/\s/g, ""))} />
+            {!lockCodigo && (
+              <span className="text-[0.7rem] font-normal text-(--ink-2)">
+                Opcional: si lo dejás vacío, se genera uno automáticamente.
+              </span>
+            )}
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold">
             Patente
-            <input className="input" value={form.patente} maxLength={12} placeholder="AA123BB"
+            <input className="input" value={form.patente} maxLength={7} placeholder="AA123BB"
+              disabled={form.es_0km}
               onChange={(e) => set("patente", e.target.value.toUpperCase())} />
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold">
             Marca*
-            <input className="input" value={form.marca} required onChange={(e) => set("marca", e.target.value)} />
+            <input className="input" value={form.marca} required maxLength={30} onChange={(e) => set("marca", e.target.value)} />
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold">
             Modelo*
-            <input className="input" value={form.modelo} required onChange={(e) => set("modelo", e.target.value)} />
+            <input className="input" value={form.modelo} required maxLength={30} onChange={(e) => set("modelo", e.target.value)} />
           </label>
           <label className="col-span-2 flex flex-col gap-1 text-xs font-semibold">
             Versión
-            <input className="input" value={form.version} onChange={(e) => set("version", e.target.value)} />
+            <input className="input" value={form.version} maxLength={60} onChange={(e) => set("version", e.target.value)} />
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold">
             Año*
@@ -207,7 +216,7 @@ export function VehicleModal({
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold">
             Km
-            <input className="input tnum" type="number" min={0} value={form.km}
+            <input className="input tnum" type="number" min={0} value={form.km} disabled={form.es_0km}
               onChange={(e) => set("km", Number(e.target.value))} />
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold">
@@ -224,7 +233,14 @@ export function VehicleModal({
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold">
             Combustible
-            <input className="input" value={form.combustible} onChange={(e) => set("combustible", e.target.value)} />
+            <select className="select" value={form.combustible} onChange={(e) => set("combustible", e.target.value)}>
+              {form.combustible !== "" && !COMBUSTIBLES.includes(form.combustible as (typeof COMBUSTIBLES)[number]) && (
+                <option value={form.combustible}>{form.combustible}</option>
+              )}
+              {COMBUSTIBLES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold">
             Transmisión
@@ -234,8 +250,8 @@ export function VehicleModal({
             </select>
           </label>
           <label className="col-span-2 flex flex-col gap-1 text-xs font-semibold">
-            Colores
-            <input className="input" value={form.color} maxLength={120}
+            Colores*
+            <input className="input" value={form.color} required maxLength={60}
               placeholder="Blanco, Negro, Gris (separá con comas)"
               onChange={(e) => set("color", e.target.value)} />
             <span className="text-[0.7rem] font-normal text-(--ink-2)">
@@ -258,7 +274,12 @@ export function VehicleModal({
           </label>
           <label className="col-span-2 flex min-h-[44px] items-center gap-2 text-sm">
             <input type="checkbox" checked={form.es_0km} className="h-5 w-5 accent-(--accent)"
-              onChange={(e) => set("es_0km", e.target.checked)} />
+              onChange={(e) => {
+                const checked = e.target.checked;
+                // Un 0km no tiene patente ni kilometraje: al marcarlo se limpian
+                // esos campos (y quedan deshabilitados).
+                setForm((f) => ({ ...f, es_0km: checked, ...(checked ? { km: 0, patente: "" } : {}) }));
+              }} />
             Es 0 km
           </label>
           {error && <p role="alert" className="col-span-2 text-sm font-semibold text-(--danger)">{error}</p>}

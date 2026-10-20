@@ -201,30 +201,143 @@ export function formatFinancing(options: FinancingOption[]): string {
 export interface GenerateResult {
   reply: string;
   leadUpdate?: NonNullable<BotOutput["lead_update"]>;
+  /** Modelo que finalmente respondió (útil para el health check). */
+  model?: string;
 }
 
-const GEMINI_MAX_RETRIES = 2;
+/**
+ * Orden de prioridad (oct 2026): 3.1 primero (default), 3.5 Flash-Lite y 3.6
+ * Flash como fallbacks. Free tier los tres.
+ * `gemini-3.7/3.8-flash` NO se usan: rechazan thinkingLevel MINIMAL (400).
+ */
+export const DEFAULT_GEMINI_MODELS = [
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
+  "gemini-3.6-flash",
+] as const;
+
+/** Lanza cuando NINGÚN modelo respondió por causas transitorias (no config). */
+export class BotUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BotUnavailableError";
+  }
+}
+
+/** Lista de modelos efectiva: GEMINI_MODELS (coma) o el default. */
+export function resolveGeminiModels(env: { GEMINI_MODELS?: string }): string[] {
+  const list = (env.GEMINI_MODELS ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  return list.length > 0 ? list : [...DEFAULT_GEMINI_MODELS];
+}
+
+export interface GeminiErrorInfo {
+  code?: number;
+  status?: string;
+  message: string;
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  return undefined;
+}
+
+function toText(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
 
 /**
- * 429 (cuota por minuto) NO se reintenta: en free tier no se recupera en
- * 1-2 s y cada reintento gasta cuota diaria. Solo 5xx.
+ * Normaliza el error de Gemini. El SDK puede lanzar un ApiError con
+ * `{error:{code,status,message}}`, un objeto con `status` numérico, o un Error
+ * cuyo `message` trae el JSON serializado. Se cubren todas las formas.
+ */
+export function geminiErrorInfo(err: unknown): GeminiErrorInfo {
+  const message = err instanceof Error ? err.message : String(err);
+  let code: number | undefined;
+  let status: string | undefined;
+  if (typeof err === "object" && err !== null) {
+    const e = err as Record<string, unknown>;
+    const nested =
+      typeof e.error === "object" && e.error !== null
+        ? (e.error as Record<string, unknown>)
+        : {};
+    code = toNumber(e.code) ?? toNumber(e.status) ?? toNumber(nested.code);
+    status = toText(nested.status) ?? toText(e.status) ?? toText(e.statusText);
+  }
+  if (code === undefined) {
+    const match = /"code"\s*:\s*(\d{3})/.exec(message);
+    if (match) code = Number(match[1]);
+  }
+  if (status === undefined) {
+    const match = /"status"\s*:\s*"([A-Z_]+)"/.exec(message);
+    if (match) status = match[1];
+  }
+  return { code, status, message };
+}
+
+const RETRYABLE_CODES = new Set([500, 502, 503, 504]);
+const TRANSIENT_CODES = new Set([404, 408, 429, 500, 502, 503, 504]);
+const TRANSIENT_STATUS = new Set([
+  "UNAVAILABLE",
+  "RESOURCE_EXHAUSTED",
+  "NOT_FOUND",
+  "DEADLINE_EXCEEDED",
+  "INTERNAL",
+]);
+const AUTH_STATUS = new Set(["UNAUTHENTICATED", "PERMISSION_DENIED"]);
+const CASCADE_MESSAGE =
+  /overloaded|high demand|unavailable|quota|rate limit|not found|timeout|timed out|deadline|aborted|econnreset|fetch failed|network/i;
+const RETRY_MESSAGE = /overloaded|high demand|unavailable|deadline/i;
+const AUTH_MESSAGE =
+  /api key not valid|api_key_invalid|invalid api key|permission denied|unauthenticated/i;
+
+/** Timeout por intento/modelo. Corta a los ~15 s y pasa al siguiente modelo. */
+const GEMINI_MODEL_TIMEOUT_MS = 15_000;
+
+/**
+ * 429 (cuota) NO se reintenta dentro del mismo modelo: en free tier no se
+ * recupera en 1-2 s y cada reintento gasta cuota diaria. Solo 5xx.
  */
 function isRetryableGeminiError(err: unknown): boolean {
-  if (typeof err !== "object" || err === null) return false;
-  const status = (err as { status?: unknown }).status;
+  const { code, status, message } = geminiErrorInfo(err);
+  if (code !== undefined && RETRYABLE_CODES.has(code)) return true;
   return (
-    status === 500 ||
-    status === 502 ||
-    status === 503 ||
-    status === 504
+    status === "UNAVAILABLE" ||
+    status === "DEADLINE_EXCEEDED" ||
+    RETRY_MESSAGE.test(message)
   );
 }
 
 /** ¿Es falta de cuota (429)? Se responde "mucha demanda" sin derivar. */
 export function isGeminiQuotaError(err: unknown): boolean {
-  if (typeof err !== "object" || err === null) return false;
-  return (err as { status?: unknown }).status === 429;
+  const { code, status, message } = geminiErrorInfo(err);
+  return (
+    code === 429 ||
+    status === "RESOURCE_EXHAUSTED" ||
+    (/quota|rate limit/i.test(message) && !AUTH_MESSAGE.test(message))
+  );
 }
+
+/** Falla transitoria: el modelo está caído/saturado → probar el siguiente. */
+function isTransientModelError(err: unknown): boolean {
+  const { code, status, message } = geminiErrorInfo(err);
+  if (code !== undefined && TRANSIENT_CODES.has(code)) return true;
+  if (status !== undefined && TRANSIENT_STATUS.has(status)) return true;
+  return CASCADE_MESSAGE.test(message);
+}
+
+/** Clave inválida o permisos: misma clave para todos los modelos → no reintentar. */
+function isAuthError(err: unknown): boolean {
+  const { code, status, message } = geminiErrorInfo(err);
+  if (code === 401 || code === 403) return true;
+  if (status !== undefined && AUTH_STATUS.has(status)) return true;
+  return AUTH_MESSAGE.test(message);
+}
+
+const GEMINI_MAX_RETRIES = 1;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -268,59 +381,59 @@ ${formatCordobaDateTime(now)}. Local: ${abierto}.
 Respondé SOLO con el JSON pedido.`;
 }
 
-export async function generateBotReply(input: GenerateInput): Promise<GenerateResult> {
-  const env = getEnv();
-  if (!env.GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY no configurada.");
-  }
-  const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
-  const systemInstruction = buildSystemPrompt({
-    name: env.DEALERSHIP_NAME,
-    address: env.DEALERSHIP_ADDRESS,
-    hours: env.DEALERSHIP_HOURS,
-  });
-  const contents = buildUserContent(input, new Date(), input.stockUpdatedAt ?? null);
+const RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    reply: { type: Type.STRING },
+    lead_update: {
+      type: Type.OBJECT,
+      properties: {
+        nombre: { type: Type.STRING },
+        auto_interes: { type: Type.STRING },
+        presupuesto: { type: Type.STRING },
+        permuta: { type: Type.STRING },
+        financiacion: { type: Type.BOOLEAN },
+        urgencia: { type: Type.STRING },
+        temperatura: { type: Type.STRING, enum: ["caliente", "tibio", "frio"] },
+        requiere_humano: { type: Type.BOOLEAN },
+        resumen: { type: Type.STRING },
+      },
+    },
+  },
+  required: ["reply"],
+};
 
+interface CallModelArgs {
+  ai: GoogleGenAI;
+  model: string;
+  systemInstruction: string;
+  contents: string;
+}
+
+/** Un intento contra UN modelo, con reintentos solo ante 5xx transitorios. */
+async function callModel({
+  ai,
+  model,
+  systemInstruction,
+  contents,
+}: CallModelArgs): Promise<GenerateResult> {
   let lastError: unknown = null;
-  // Intento inicial + reintentos con backoff exponencial ante 429/5xx.
   for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      await sleep(1000 * 2 ** (attempt - 1));
-    }
+    if (attempt > 0) await sleep(500 * 2 ** (attempt - 1));
     try {
       const response = await ai.models.generateContent({
-        model: env.GEMINI_MODEL,
+        model,
         contents,
         config: {
           systemInstruction,
-          // Menos inventos y JSON más estable; thinking al mínimo: es un
-          // bot de WhatsApp, no necesita razonar (verificado en la doc del
-          // modelo: gemini-3.1-flash-lite soporta thinkingLevel minimal).
+          // Menos inventos y JSON más estable; thinking al mínimo: es un bot
+          // de WhatsApp, no necesita razonar.
           temperature: 0.4,
           maxOutputTokens: 500,
           thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
           responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              reply: { type: Type.STRING },
-              lead_update: {
-                type: Type.OBJECT,
-                properties: {
-                  nombre: { type: Type.STRING },
-                  auto_interes: { type: Type.STRING },
-                  presupuesto: { type: Type.STRING },
-                  permuta: { type: Type.STRING },
-                  financiacion: { type: Type.BOOLEAN },
-                  urgencia: { type: Type.STRING },
-                  temperatura: { type: Type.STRING, enum: ["caliente", "tibio", "frio"] },
-                  requiere_humano: { type: Type.BOOLEAN },
-                  resumen: { type: Type.STRING },
-                },
-              },
-            },
-            required: ["reply"],
-          },
+          responseSchema: RESPONSE_SCHEMA,
+          httpOptions: { timeout: GEMINI_MODEL_TIMEOUT_MS },
         },
       });
       const raw = response.text?.trim() ?? "";
@@ -330,11 +443,12 @@ export async function generateBotReply(input: GenerateInput): Promise<GenerateRe
         return {
           reply: sanitizeReply(parsed.reply),
           leadUpdate: parsed.lead_update,
+          model,
         };
       } catch {
         // JSON inválido: un solo reintento pidiendo reparación.
         const repair = await ai.models.generateContent({
-          model: env.GEMINI_MODEL,
+          model,
           contents: `Devolviste un JSON inválido. Devolvé SOLO el JSON válido con la misma información, sin ningún texto extra:\n${raw}`,
           config: {
             systemInstruction,
@@ -342,23 +456,123 @@ export async function generateBotReply(input: GenerateInput): Promise<GenerateRe
             maxOutputTokens: 500,
             thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
             responseMimeType: "application/json",
+            httpOptions: { timeout: GEMINI_MODEL_TIMEOUT_MS },
           },
         });
         const repaired = parseBotOutput(repair.text?.trim() ?? "");
         return {
           reply: sanitizeReply(repaired.reply),
           leadUpdate: repaired.lead_update,
+          model,
         };
       }
     } catch (err) {
       lastError = err;
       if (!isRetryableGeminiError(err)) throw err;
-      // Si es reintentable, el loop sigue (backoff arriba).
+      // Reintentable: el loop vuelve a intentar el mismo modelo (backoff arriba).
     }
   }
   throw lastError instanceof Error
     ? lastError
     : new Error("Gemini no respondió tras los reintentos.");
+}
+
+export async function generateBotReply(input: GenerateInput): Promise<GenerateResult> {
+  const env = getEnv();
+  if (!env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY no configurada.");
+  }
+  const models = resolveGeminiModels(env);
+  const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+  const systemInstruction = buildSystemPrompt({
+    name: env.DEALERSHIP_NAME,
+    address: env.DEALERSHIP_ADDRESS,
+    hours: env.DEALERSHIP_HOURS,
+  });
+  const contents = buildUserContent(input, new Date(), input.stockUpdatedAt ?? null);
+
+  // Cascada: si un modelo está caído/saturado (o descontinuado), se prueba el
+  // siguiente. Un error de clave/auth corta de inmediato (afecta a todos).
+  const errors: unknown[] = [];
+  for (const model of models) {
+    try {
+      return await callModel({ ai, model, systemInstruction, contents });
+    } catch (err) {
+      const info = geminiErrorInfo(err);
+      console.error(
+        `[bot] modelo ${model} falló: code=${info.code ?? "-"} status=${info.status ?? "-"} ${info.message}`,
+      );
+      errors.push(err);
+      if (isAuthError(err)) throw err;
+      // Transitorio (503/429/404) o incompatibilidad puntual: probar el siguiente.
+      continue;
+    }
+  }
+
+  const last = errors[errors.length - 1];
+  const anyTransient = errors.some(isTransientModelError);
+  if (!anyTransient) {
+    // Ningún modelo estaba caído: es un problema real (config/request).
+    throw last instanceof Error ? last : new Error("Gemini falló sin detalle.");
+  }
+  throw new BotUnavailableError(
+    `Ningún modelo de IA respondió (${models.join(", ")}). Último error: ${
+      last instanceof Error ? last.message : String(last)
+    }`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 4b. Health: ping real a cada modelo (sin gastar cuota de más)
+// ---------------------------------------------------------------------------
+
+export interface ModelPing {
+  model: string;
+  ok: boolean;
+  code?: number;
+  status?: string;
+  ms: number;
+}
+
+/** Pingea cada modelo con una petición mínima. Devuelve el estado por modelo. */
+export async function pingGemini(models: string[]): Promise<ModelPing[]> {
+  const apiKey = getEnv().GEMINI_API_KEY;
+  if (!apiKey) {
+    return models.map((model) => ({ model, ok: false, status: "NO_API_KEY", ms: 0 }));
+  }
+  const ai = new GoogleGenAI({ apiKey });
+  const out: ModelPing[] = [];
+  for (const model of models) {
+    const start = Date.now();
+    try {
+      const res = await ai.models.generateContent({
+        model,
+        contents: "Respondé solo: OK",
+        // Sin thinkingLevel MINIMAL, los modelos 3.x gastan pocos tokens
+        // pensando y devuelven texto vacío (finishReason MAX_TOKENS).
+        config: {
+          maxOutputTokens: 32,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          httpOptions: { timeout: GEMINI_MODEL_TIMEOUT_MS },
+        },
+      });
+      out.push({
+        model,
+        ok: (res.text ?? "").trim().length > 0,
+        ms: Date.now() - start,
+      });
+    } catch (err) {
+      const info = geminiErrorInfo(err);
+      out.push({
+        model,
+        ok: false,
+        code: info.code,
+        status: info.status,
+        ms: Date.now() - start,
+      });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

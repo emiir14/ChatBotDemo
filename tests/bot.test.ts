@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_GEMINI_MODELS,
   buildUserContent,
   formatFinancing,
   formatKnownLead,
   formatPrice,
+  geminiErrorInfo,
   isGeminiQuotaError,
   parseBotOutput,
+  resolveGeminiModels,
   sanitizeReply,
 } from "@/lib/bot";
 import { activeFinancing, todayCordoba, type FinancingOption } from "@/lib/financing";
@@ -111,6 +114,47 @@ describe("isGeminiQuotaError", () => {
     expect(isGeminiQuotaError({ status: 503 })).toBe(false);
     expect(isGeminiQuotaError(new Error("x"))).toBe(false);
     expect(isGeminiQuotaError(null)).toBe(false);
+  });
+
+  it("reconoce la forma anidada real del SDK", () => {
+    expect(
+      isGeminiQuotaError({ error: { code: 429, status: "RESOURCE_EXHAUSTED" } }),
+    ).toBe(true);
+  });
+});
+
+describe("resolveGeminiModels", () => {
+  it("usa la lista configurada, recortando espacios", () => {
+    expect(resolveGeminiModels({ GEMINI_MODELS: "a, b , c" })).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("cae al default verificado si no hay lista", () => {
+    expect(resolveGeminiModels({})).toEqual([...DEFAULT_GEMINI_MODELS]);
+    expect(resolveGeminiModels({ GEMINI_MODELS: "   " })).toEqual([
+      ...DEFAULT_GEMINI_MODELS,
+    ]);
+  });
+});
+
+describe("geminiErrorInfo", () => {
+  it("lee code/status de un error anidado", () => {
+    const info = geminiErrorInfo({
+      error: { code: 503, status: "UNAVAILABLE", message: "high demand" },
+    });
+    expect(info.code).toBe(503);
+    expect(info.status).toBe("UNAVAILABLE");
+  });
+
+  it("lee code/status del mensaje serializado", () => {
+    const info = geminiErrorInfo(
+      new Error('{"error":{"code":404,"status":"NOT_FOUND"}}'),
+    );
+    expect(info.code).toBe(404);
+    expect(info.status).toBe("NOT_FOUND");
   });
 });
 

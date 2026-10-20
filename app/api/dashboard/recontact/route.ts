@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { getEnv } from "@/lib/env";
+import { resolveGeminiModels } from "@/lib/bot";
 import { getSupabaseAdmin, type Lead } from "@/lib/supabase";
 import { isWithin24hWindow } from "@/lib/time";
 import { sendWhatsAppText } from "@/lib/meta";
@@ -157,7 +158,7 @@ async function generateDraft(lead: Lead): Promise<string> {
       .filter(Boolean)
       .join("\n");
     const res = await ai.models.generateContent({
-      model: env.GEMINI_MODEL,
+      model: resolveGeminiModels(env)[0],
       contents:
         `Redactá UN mensaje corto de seguimiento por WhatsApp (máximo 3 oraciones, ` +
         `sin markdown, tono rioplatense cercano, máximo un emoji) para retomar contacto ` +

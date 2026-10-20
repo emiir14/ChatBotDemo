@@ -18,7 +18,10 @@ const envSchema = z.object({
 
   // Gemini
   GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY es obligatoria").optional(),
-  GEMINI_MODEL: z.string().min(1).default("gemini-3.1-flash-lite"),
+  // Lista ordenada de modelos (coma-separada). El bot prueba el primero y, si
+  // falla por caída/cuota, pasa al siguiente (ver resolveGeminiModels en bot.ts).
+  // Si está vacío, se usa el default (modelos free tier verificados, oct 2026).
+  GEMINI_MODELS: z.string().min(1).optional(),
 
   // WhatsApp Cloud API
   WHATSAPP_TOKEN: z.string().min(1).optional(),

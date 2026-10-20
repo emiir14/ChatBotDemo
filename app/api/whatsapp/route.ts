@@ -11,6 +11,7 @@ import {
 } from "@/lib/whatsapp";
 import { markAsRead, sendWhatsAppText } from "@/lib/meta";
 import {
+  BotUnavailableError,
   busyReply,
   fallbackReply,
   generateBotReply,
@@ -319,8 +320,9 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     console.error(
       `[whatsapp] Gemini falló (${masked}): ${err instanceof Error ? err.message : String(err)}`,
     );
-    if (isGeminiQuotaError(err)) {
-      // 429: pedir paciencia SIN derivar (no es un lead caliente, es cuota).
+    if (err instanceof BotUnavailableError || isGeminiQuotaError(err)) {
+      // Todos los modelos caídos/saturados o sin cuota: pedir paciencia SIN
+      // derivar (no es un problema del negocio, es infra de la IA).
       reply = busyReply();
     } else {
       reply = technicalErrorReply();

@@ -1,26 +1,43 @@
-import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/env";
 import { generateBotReply, pingGemini, resolveGeminiModels } from "@/lib/bot";
 import type { Vehicle } from "@/lib/supabase";
 
 /**
- * GET /api/health — chequeo real para la demo.
- * Confirma: variables presentes, conexión con Supabase y ping REAL a cada
- * modelo de Gemini configurado (no solo config). No expone secretos.
- *
- *   GET /api/health            → env + Supabase + ping por modelo
- *   GET /api/health?deep=1     → además, un dry-run del bot con el stock real
- *                                (gasta 1 llamada a la IA; ideal antes de la reunión).
- *
- * Responde 200 si todo OK, 500 si algo falla (así lo ves de un vistazo).
+ * Lógica del chequeo de salud (solo servidor). La usa la server action de
+ * /salud. No es una API pública: no hay endpoint HTTP separado.
  */
 
-// La demo corre en Vercel Hobby ($0): el deep check puede sumar unos segundos.
-export const maxDuration = 60;
+export interface ModelPing {
+  model: string;
+  ok: boolean;
+  code?: number;
+  status?: string;
+  ms: number;
+}
 
-export async function GET(req: Request): Promise<NextResponse> {
-  const deep = new URL(req.url).searchParams.get("deep") === "1";
-  const checks: Record<string, { ok: boolean; detail: string }> = {};
+export interface BotRun {
+  ok: boolean;
+  model?: string;
+  ms: number;
+  reply?: string;
+  error?: string;
+}
+
+export interface CheckItem {
+  ok: boolean;
+  detail: string;
+}
+
+export interface HealthReport {
+  ok: boolean;
+  checks: Record<string, CheckItem>;
+  models: ModelPing[];
+  botRun: BotRun | null;
+}
+
+export async function runHealthCheck(deep: boolean): Promise<HealthReport> {
+  const checks: Record<string, CheckItem> = {};
+  let botRun: BotRun | null = null;
 
   let env;
   try {
@@ -31,7 +48,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       ok: false,
       detail: err instanceof Error ? err.message : "Variables inválidas.",
     };
-    return NextResponse.json({ ok: false, checks }, { status: 500 });
+    return { ok: false, checks, models: [], botRun: null };
   }
 
   // Supabase: ping liviano (si las tablas aún no existen, se reporta como
@@ -86,18 +103,19 @@ export async function GET(req: Request): Promise<NextResponse> {
         newMessage: "Hola, ¿tenés algún 0km disponible?",
       });
       const ms = Date.now() - start;
+      const reply = result.reply;
       checks.bot = {
-        ok: result.reply.length > 0,
-        detail: `Respondió ${result.model ?? "?"} en ${ms} ms: "${result.reply.slice(0, 200)}"`,
+        ok: reply.length > 0,
+        detail: `Respondió ${result.model ?? "?"} en ${ms} ms: "${reply.slice(0, 200)}"`,
       };
+      botRun = { ok: reply.length > 0, model: result.model, ms, reply };
     } catch (err) {
-      checks.bot = {
-        ok: false,
-        detail: `El bot no pudo responder: ${err instanceof Error ? err.message : String(err)}`,
-      };
+      const message = err instanceof Error ? err.message : String(err);
+      checks.bot = { ok: false, detail: `El bot no pudo responder: ${message}` };
+      botRun = { ok: false, ms: 0, error: message };
     }
   }
 
   const ok = Object.values(checks).every((c) => c.ok);
-  return NextResponse.json({ ok, checks }, { status: ok ? 200 : 500 });
+  return { ok, checks, models: pings, botRun };
 }

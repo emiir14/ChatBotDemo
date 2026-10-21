@@ -3,8 +3,9 @@ import type { NextRequest } from "next/server";
 import { getCookieName, verifySessionToken } from "@/lib/auth";
 
 /**
- * Protege /dashboard* y /api/dashboard*. Sin sesión válida: la página
- * redirige a /login y la API responde 401.
+ * Protege /dashboard*, /api/dashboard* y la página /salud con la misma sesión
+ * del panel (cookie firmada). Sin sesión válida: las páginas redirigen a
+ * /login y las APIs responden 401.
  */
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const token = req.cookies.get(getCookieName())?.value;
@@ -20,5 +21,5 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/api/dashboard/:path*", "/salud"],
 };

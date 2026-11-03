@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type JSX } from "react";
 import { Bell, BellOff, BellRing, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { getPushState, enablePush, disablePush, type PushState } from "@/lib/push";
-import { unlockAudio } from "@/lib/notify";
+import { flashTitle, playPing, showBrowserNotification, unlockAudio } from "@/lib/notify";
 
 /**
  * Control de notificaciones del dispositivo. El permiso del navegador se pide
@@ -17,6 +17,7 @@ export function NotificationSettings({
 }): JSX.Element {
   const [state, setState] = useState<PushState | "checking">("checking");
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
 
@@ -65,6 +66,37 @@ export function NotificationSettings({
     setOpen(false);
   }
 
+  async function testNotification(): Promise<void> {
+    setTesting(true);
+    unlockAudio();
+    playPing();
+    flashTitle("Lead caliente (Prueba)", 1);
+    const shown = showBrowserNotification(
+      "🔥 Lead caliente (Prueba)",
+      "Mayko Leo · Consulta por Toyota Hilux 2024",
+      () => {
+        window.focus();
+        setOpen(false);
+      },
+    );
+    try {
+      const res = await fetch("/api/dashboard/push/test", { method: "POST" });
+      if (res.ok) {
+        onToast(
+          shown
+            ? "Notificación en escritorio y sonido emitidos correctamente"
+            : "Aviso enviado. Si no viste el cartel en pantalla, revisá 'No molestar' en Windows",
+        );
+      } else {
+        onToast("Aviso reproducido localmente");
+      }
+    } catch {
+      onToast("Aviso reproducido localmente");
+    } finally {
+      setTesting(false);
+    }
+  }
+
   const on = state === "on";
 
   return (
@@ -110,9 +142,20 @@ export function NotificationSettings({
                 Activadas en <strong>este dispositivo</strong>. Te avisamos cuando un chat necesite un
                 vendedor o sea un lead caliente.
               </p>
-              <Button variant="ghost" size="sm" disabled={busy} onClick={turnOff} tooltip="Dejar de recibir avisos en este dispositivo">
-                {busy ? "Desactivando…" : "Desactivar en este dispositivo"}
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={testing || busy}
+                  onClick={testNotification}
+                  tooltip="Envía una notificación en tu pantalla de Windows y reproduce sonido sin gastar tokens de IA"
+                >
+                  {testing ? "Probando…" : "Probar aviso (Lead caliente)"}
+                </Button>
+                <Button variant="ghost" size="sm" disabled={busy || testing} onClick={turnOff} tooltip="Dejar de recibir avisos en este dispositivo">
+                  {busy ? "Desactivando…" : "Desactivar en este dispositivo"}
+                </Button>
+              </div>
             </>
           )}
 

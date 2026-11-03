@@ -2,8 +2,8 @@
 
 /**
  * Avisos de "chat nuevo" del lado del cliente (sin service worker ni terceros):
- * A) aviso en pantalla (sonido + título parpadeando) — lo maneja la página.
- * B) notificación del navegador mientras la pestaña del panel está abierta.
+ * A) aviso en pantalla (sonido + título parpadeando con badge (1), (2) como WhatsApp Web)
+ * B) notificación del navegador y escritorio de Windows (Notification API).
  */
 
 export type NotifPermission = "unsupported" | "default" | "granted" | "denied";
@@ -45,6 +45,16 @@ export function playPing(): void {
   osc.stop(t0 + 0.42);
 }
 
+let baseTitle: string | null = null;
+
+function getCleanBaseTitle(): string {
+  if (typeof document === "undefined") return "";
+  if (!baseTitle) {
+    baseTitle = document.title.replace(/^\(\d+\)\s*/, "").replace(/^🔔\s*/, "") || "Panel · ChatBotDemo";
+  }
+  return baseTitle;
+}
+
 let titleFlash: { timer: number; original: string; stop: () => void } | null = null;
 
 /** Detiene el parpadeo del título y restaura el original. */
@@ -56,25 +66,55 @@ export function stopTitleFlash(): void {
   titleFlash = null;
 }
 
-/** Hace parpadear el título de la pestaña hasta que el usuario vuelve a la pestaña. */
-export function flashTitle(message: string): void {
+/** Actualiza el título con el badge de mensajes no leídos: ej. "(2) Panel · ChatBotDemo" */
+export function setUnreadBadge(count: number): void {
+  if (typeof document === "undefined") return;
+  const base = getCleanBaseTitle();
+  if (count > 0) {
+    document.title = `(${count}) ${base}`;
+  } else {
+    document.title = base;
+  }
+}
+
+/** Limpia el badge del título de la pestaña. */
+export function clearUnreadBadge(): void {
+  setUnreadBadge(0);
+}
+
+/**
+ * Hace parpadear el título de la pestaña con aviso y contador estilo WhatsApp Web:
+ * Alterna entre "🔔 (1) Nuevo lead" y "(1) Astra Automotores" hasta que el usuario regresa a la pestaña.
+ */
+export function flashTitle(message: string, count: number = 1): void {
   if (typeof document === "undefined") return;
   stopTitleFlash();
-  const original = document.title;
-  const alt = `🔔 ${message}`;
+  const original = getCleanBaseTitle();
+  const prefix = count > 0 ? `(${count}) ` : "";
+  const alt = `🔔 ${prefix}${message}`;
+  const regular = `${prefix}${original}`;
   let on = false;
+
   const timer = window.setInterval(() => {
-    document.title = on ? original : alt;
+    document.title = on ? regular : alt;
     on = !on;
-  }, 1300);
-  const onFocus = (): void => stopTitleFlash();
+  }, 1200);
+
+  const onFocus = (): void => {
+    stopTitleFlash();
+    clearUnreadBadge();
+  };
   const onVisible = (): void => {
-    if (!document.hidden) stopTitleFlash();
+    if (!document.hidden) {
+      stopTitleFlash();
+      clearUnreadBadge();
+    }
   };
   const stop = (): void => {
     window.removeEventListener("focus", onFocus);
     document.removeEventListener("visibilitychange", onVisible);
   };
+
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisible);
   titleFlash = { timer, original, stop };
@@ -126,9 +166,9 @@ export async function requestNotifyPermission(): Promise<NotifPermission> {
 }
 
 /**
- * Muestra una notificación del navegador. Devuelve false si no se pudo
- * (permiso denegado o constructor no soportado en móviles, que requiere
- * service worker).
+ * Muestra una notificación en el escritorio (Windows / Mac / navegador).
+ * Utiliza el icono oficial de la app y renotify para asegurar que Windows
+ * muestre el banner emergente en la esquina de la pantalla.
  */
 export function showBrowserNotification(
   title: string,
@@ -137,7 +177,13 @@ export function showBrowserNotification(
 ): boolean {
   if (!notificationSupported() || Notification.permission !== "granted") return false;
   try {
-    const options: NotificationOptions = { body, tag: "nuevo-lead" };
+    const options: NotificationOptions = {
+      body,
+      tag: "nuevo-lead",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      renotify: true,
+    };
     const n = new Notification(title, options);
     n.onclick = () => {
       window.focus();

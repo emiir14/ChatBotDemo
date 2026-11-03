@@ -53,7 +53,7 @@ import { LeadsTable, type LeadFilters } from "@/components/dashboard/LeadsTable"
 import { customDayBounds, formatDurationShort } from "@/lib/metrics";
 import type { ActivityItem } from "@/lib/activity";
 import { formatPhone, timeAgo } from "@/lib/format";
-import { flashTitle, playPing, showBrowserNotification } from "@/lib/notify";
+import { clearUnreadBadge, flashTitle, playPing, showBrowserNotification } from "@/lib/notify";
 import type { LeadRow, LeadsResponse, StatusResponse, SummaryResponse } from "@/components/dashboard/types";
 
 const LeadDrawer = dynamic(
@@ -90,15 +90,15 @@ function useVisible(): boolean {
 type PanelTab = "resumen" | "embudo" | "leads";
 
 const TABS: Array<{ key: PanelTab; label: string; icon: typeof LayoutGrid }> = [
-  { key: "resumen", label: "General", icon: LayoutGrid },
   { key: "leads", label: "Leads", icon: Users },
+  { key: "resumen", label: "General", icon: LayoutGrid },
   { key: "embudo", label: "Resumen de consultas", icon: BarChart3 },
 ];
 
 export default function DashboardPage(): JSX.Element {
   const [period, setPeriod] = useState<Period>("today");
   const [custom, setCustom] = useState<CustomRange | null>(null);
-  const [tab, setTab] = useState<PanelTab>("resumen");
+  const [tab, setTab] = useState<PanelTab>("leads");
   const [filters, setFilters] = useState<LeadFilters>({ temperatura: "all", estado: "all", atendido: "all", recontacto: "all", q: "", sort: "actividad", dir: "desc", page: 1 });
   const [openLeadId, setOpenLeadId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -108,7 +108,16 @@ export default function DashboardPage(): JSX.Element {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const visible = useVisible();
+  const unreadCount = useRef(0);
+
+  useEffect(() => {
+    if (visible) {
+      unreadCount.current = 0;
+      clearUnreadBadge();
+    }
+  }, [visible]);
   const knownIds = useRef<Set<string> | null>(null);
+  const knownHotIds = useRef<Set<string> | null>(null);
   const knownTotal = useRef<number | null>(null);
   const prevChange = useRef<string | null>(null);
   const toastId = useRef(0);
@@ -224,30 +233,52 @@ export default function DashboardPage(): JSX.Element {
   useEffect(() => {
     if (!leads || !leadsDefaultView) return;
     const ids = new Set(leads.items.map((l) => l.id));
-    if (knownIds.current === null || knownTotal.current === null) {
+    const currentHotIds = new Set(
+      leads.items.filter((l) => l.temperatura === "caliente").map((l) => l.id)
+    );
+
+    if (knownIds.current === null || knownTotal.current === null || knownHotIds.current === null) {
       knownIds.current = ids;
       knownTotal.current = leads.total;
+      knownHotIds.current = currentHotIds;
       return;
     }
-    // Un lead nuevo hace crecer el total. Al eliminar uno el total baja y el
-    // listado se recompone (entra uno de la página siguiente): eso NO es un
-    // lead nuevo, por eso solo detectamos cuando el total creció.
+
     const fresh = leads.total > knownTotal.current
       ? leads.items.filter((l) => !knownIds.current!.has(l.id))
       : [];
     knownIds.current = ids;
     knownTotal.current = leads.total;
+
+    // Detectar leads que son calientes o pasaron a calientes
+    const freshHot = leads.items.filter(
+      (l) => l.temperatura === "caliente" && !knownHotIds.current!.has(l.id)
+    );
+    knownHotIds.current = currentHotIds;
+
+    // Toasts generales de actividad para el panel (visibles en pantalla si está abierto)
     if (fresh.length > 0) {
       const first = fresh[0];
-      const label = first.nombre ?? "Sin nombre";
-      pushToast(`Nuevo lead: ${first.nombre ?? "sin nombre"}`, first.id);
       setNewIds(new Set(fresh.map((l) => l.id)));
       window.setTimeout(() => setNewIds(new Set()), 6000);
+      if (first.temperatura !== "caliente") {
+        pushToast(`Nuevo lead: ${first.nombre ?? "sin nombre"}`, first.id);
+      }
+    }
+
+    // Notificaciones numéricas en la pestaña (1), parpadeo y alerta sonora: SOLO PARA LEADS CALIENTES
+    if (freshHot.length > 0) {
+      const first = freshHot[0];
+      const label = first.nombre ?? "Sin nombre";
+      const desc = first.auto_interes ? `${label} · ${first.auto_interes}` : label;
+
       playPing();
-      flashTitle(`Nuevo lead: ${label}`);
+      unreadCount.current += freshHot.length;
+      flashTitle(`🔥 Lead caliente: ${label}`, unreadCount.current);
+      pushToast(`🔥 Lead caliente: ${label}`, first.id);
       showBrowserNotification(
-        "Nuevo chat en el bot",
-        `${label}${first.auto_interes ? ` · ${first.auto_interes}` : ""}`,
+        "🔥 Lead caliente",
+        desc,
         () => setOpenLeadId(first.id),
       );
     }
@@ -374,6 +405,39 @@ export default function DashboardPage(): JSX.Element {
           transition={{ duration: 0.18 }}
           className="flex flex-col gap-6"
         >
+      {tab === "leads" && (
+        <>
+          {/* TABLA */}
+          <section aria-label="Leads">
+          <SectionHead
+            icon={<Table2 size={17} className="text-(--ink-2)" />} tint="var(--surface-3)"
+            title="Leads" hint="Clic en un lead para ver la conversación."
+          />
+          {leadsError ? (
+            <ErrorBox message="Revisá tu conexión." onRetry={() => mutateLeads()} />
+          ) : !leads ? (
+            <div className="card p-4" aria-label="Cargando leads">
+              <div className="skeleton h-10" />
+              <div className="skeleton mt-2 h-10" />
+              <div className="skeleton mt-2 h-10" />
+            </div>
+          ) : (
+            <LeadsTable
+              items={leads.items}
+              total={leads.total}
+              page={leads.page}
+              pageSize={leads.pageSize}
+              filters={filters}
+              onFilters={setFilters}
+              onOpen={setOpenLeadId}
+              onDelete={deleteLead}
+              newIds={newIds}
+            />
+          )}
+          </section>
+        </>
+      )}
+
       {tab === "resumen" && (
         <>
           {/* KPIS */}
@@ -656,40 +720,7 @@ export default function DashboardPage(): JSX.Element {
         </>
       )}
 
-      {tab === "leads" && (
-        <>
-          {/* TABLA */}
-          <section aria-label="Leads">
-          <SectionHead
-            icon={<Table2 size={17} className="text-(--ink-2)" />} tint="var(--surface-3)"
-            title="Leads" hint="Clic en un lead para ver la conversación."
-          />
-          {leadsError ? (
-            <ErrorBox message="Revisá tu conexión." onRetry={() => mutateLeads()} />
-          ) : !leads ? (
-            <div className="card p-4" aria-label="Cargando leads">
-              <div className="skeleton h-10" />
-              <div className="skeleton mt-2 h-10" />
-              <div className="skeleton mt-2 h-10" />
-            </div>
-          ) : (
-            <LeadsTable
-              items={leads.items}
-              total={leads.total}
-              page={leads.page}
-              pageSize={leads.pageSize}
-              filters={filters}
-              onFilters={setFilters}
-              onOpen={setOpenLeadId}
-              onDelete={deleteLead}
-              newIds={newIds}
-            />
-          )}
-          </section>
-        </>
-      )}
-
-        </motion.div>
+      </motion.div>
       </AnimatePresence>
       </main>
 

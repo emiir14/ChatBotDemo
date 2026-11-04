@@ -50,22 +50,24 @@ export function StaleThresholdForm({
 
   return (
     <form
-      className="flex items-center gap-1.5"
+      className="flex flex-wrap items-center gap-2"
       title="Cambiar a los cuántos días se muestra esta alerta"
       onSubmit={submit}
     >
-      <label htmlFor={inputId} className="whitespace-nowrap text-xs text-(--ink-2)">
-        Alertar a los
-      </label>
-      <NaturalNumberInput
-        id={inputId}
-        value={value}
-        onValueChange={setValue}
-        min={STALE_DAYS_MIN}
-        max={STALE_DAYS_MAX}
-        ariaLabel="Días sin actualizar para alertar"
-      />
-      <span className="text-xs text-(--ink-2)">días</span>
+      <div className="flex items-center gap-1.5">
+        <label htmlFor={inputId} className="whitespace-nowrap text-xs text-(--ink-2)">
+          Alertar a los
+        </label>
+        <NaturalNumberInput
+          id={inputId}
+          value={value}
+          onValueChange={setValue}
+          min={STALE_DAYS_MIN}
+          max={STALE_DAYS_MAX}
+          ariaLabel="Días sin actualizar para alertar"
+        />
+        <span className="text-xs text-(--ink-2)">días</span>
+      </div>
       <Button
         type="submit"
         variant="ghost"

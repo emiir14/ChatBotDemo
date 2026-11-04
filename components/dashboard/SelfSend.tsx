@@ -50,24 +50,31 @@ export function SelfSend({ onToast }: { onToast: (msg: string) => void }): JSX.E
   }
 
   return (
-    <span className="flex items-center gap-1.5 rounded-lg border border-(--line) bg-(--surface-2) px-2 py-1">
-      <input
-        className="input tnum w-36"
-        style={{ minHeight: 34 }}
-        inputMode="tel"
-        placeholder="549351..."
-        title="Tu celular en dígitos, sin + ni espacios"
-        value={phone}
-        autoFocus
-        onChange={(e) => setPhone(e.target.value)}
-        aria-label="Tu celular para la prueba"
+    <span className="relative">
+      <div
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:hidden"
+        onClick={() => setOpen(false)}
+        aria-hidden="true"
       />
-      <Button variant="primary" size="sm" disabled={sending} onClick={send} tooltip="Enviar plantilla de prueba a ese número">
-        {sending ? "…" : "Enviar"}
-      </Button>
-      <Button variant="ghost" size="sm" onClick={() => setOpen(false)} aria-label="Cancelar" tooltip="Cerrar sin enviar">
-        ✕
-      </Button>
+      <span className="fixed inset-x-3.5 top-16 z-50 flex items-center justify-between gap-1.5 rounded-2xl border border-(--line) bg-(--surface-2) p-3 shadow-2xl sm:static sm:z-auto sm:flex sm:w-auto sm:rounded-lg sm:p-1 sm:shadow-none">
+        <input
+          className="input tnum flex-1 sm:w-36"
+          style={{ minHeight: 34 }}
+          inputMode="tel"
+          placeholder="549351..."
+          title="Tu celular en dígitos, sin + ni espacios"
+          value={phone}
+          autoFocus
+          onChange={(e) => setPhone(e.target.value)}
+          aria-label="Tu celular para la prueba"
+        />
+        <Button variant="primary" size="sm" disabled={sending} onClick={send} tooltip="Enviar plantilla de prueba a ese número">
+          {sending ? "…" : "Enviar"}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setOpen(false)} aria-label="Cancelar" tooltip="Cerrar sin enviar">
+          ✕
+        </Button>
+      </span>
     </span>
   );
 }

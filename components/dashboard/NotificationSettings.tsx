@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type JSX } from "react";
-import { Bell, BellOff, BellRing, Loader2 } from "lucide-react";
+import { Bell, BellOff, BellRing, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { getPushState, enablePush, disablePush, type PushState } from "@/lib/push";
 import { flashTitle, playPing, showBrowserNotification, unlockAudio } from "@/lib/notify";
@@ -109,7 +109,7 @@ export function NotificationSettings({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="Notificaciones de nuevos chats"
-        tooltip="Notificaciones de nuevos chats"
+        tooltip={open ? undefined : "Notificaciones de nuevos chats"}
         tooltipSide="bottom"
       >
         {state === "checking" ? (
@@ -125,77 +125,95 @@ export function NotificationSettings({
       </Button>
 
       {open && (
-        <div
-          role="dialog"
-          aria-label="Notificaciones"
-          className="absolute right-0 top-10 z-50 flex w-72 flex-col gap-3 rounded-xl border border-(--line) bg-(--surface-2) p-3.5 text-sm shadow-xl"
-        >
-          <p className="font-bold">Notificaciones de nuevos chats</p>
+        <>
+          {/* Backdrop en móvil para cerrar al tocar fuera */}
+          <div
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:hidden"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-label="Notificaciones"
+            className="fixed inset-x-3.5 top-16 z-50 flex max-h-[85vh] flex-col gap-3 overflow-y-auto rounded-2xl border border-(--line) bg-(--surface-2) p-4 text-sm shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:max-h-none sm:w-72 sm:rounded-xl sm:p-3.5"
+          >
+            <div className="flex items-center justify-between">
+              <p className="font-bold">Notificaciones de nuevos chats</p>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-lg p-1 text-(--ink-3) hover:bg-(--surface-3) hover:text-(--ink) sm:hidden"
+                aria-label="Cerrar ventana"
+              >
+                <X size={17} aria-hidden="true" />
+              </button>
+            </div>
 
-          {state === "checking" && (
-            <p className="text-(--ink-2)">Verificando el estado…</p>
-          )}
+            {state === "checking" && (
+              <p className="text-(--ink-2)">Verificando el estado…</p>
+            )}
 
-          {on && (
-            <>
-              <p className="text-(--ink-2)">
-                Activadas en <strong>este dispositivo</strong>. Te avisamos cuando un chat necesite un
-                vendedor o sea un lead caliente.
-              </p>
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={testing || busy}
-                  onClick={testNotification}
-                  tooltip="Envía una notificación en tu pantalla de Windows y reproduce sonido sin gastar tokens de IA"
-                >
-                  {testing ? "Probando…" : "Probar aviso (Lead caliente)"}
+            {on && (
+              <>
+                <p className="text-(--ink-2)">
+                  Activadas en <strong>este dispositivo</strong>. Te avisamos cuando un chat necesite un
+                  vendedor o sea un lead caliente.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={testing || busy}
+                    onClick={testNotification}
+                    tooltip="Envía una notificación en tu pantalla de Windows y reproduce sonido sin gastar tokens de IA"
+                  >
+                    {testing ? "Probando…" : "Probar aviso (Lead caliente)"}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={busy || testing} onClick={turnOff} tooltip="Dejar de recibir avisos en este dispositivo">
+                    {busy ? "Desactivando…" : "Desactivar en este dispositivo"}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {state === "off" && (
+              <>
+                <p className="text-(--ink-2)">
+                  Recibí un aviso cuando un chat pida un vendedor o sea un lead caliente.
+                </p>
+                <Button variant="primary" size="sm" disabled={busy} onClick={turnOn} tooltip="Pedir permiso y activar los avisos en este dispositivo">
+                  {busy ? "Activando…" : "Activar notificaciones"}
                 </Button>
-                <Button variant="ghost" size="sm" disabled={busy || testing} onClick={turnOff} tooltip="Dejar de recibir avisos en este dispositivo">
-                  {busy ? "Desactivando…" : "Desactivar en este dispositivo"}
-                </Button>
-              </div>
-            </>
-          )}
+              </>
+            )}
 
-          {state === "off" && (
-            <>
+            {state === "blocked" && (
               <p className="text-(--ink-2)">
-                Recibí un aviso cuando un chat pida un vendedor o sea un lead caliente.
+                El navegador bloqueó las notificaciones. Habilitalas desde el <strong>candado</strong> de la
+                barra de direcciones y volvé a intentar.
               </p>
-              <Button variant="primary" size="sm" disabled={busy} onClick={turnOn} tooltip="Pedir permiso y activar los avisos en este dispositivo">
-                {busy ? "Activando…" : "Activar notificaciones"}
-              </Button>
-            </>
-          )}
+            )}
 
-          {state === "blocked" && (
-            <p className="text-(--ink-2)">
-              El navegador bloqueó las notificaciones. Habilitalas desde el <strong>candado</strong> de la
-              barra de direcciones y volvé a intentar.
+            {state === "ios-install" && (
+              <p className="text-(--ink-2)">
+                En <strong>iPhone</strong> hay que instalar la app primero: tocá <strong>Compartir</strong> →
+                <strong> Agregar a pantalla de inicio</strong>, abrí el sitio desde ese ícono y después tocá
+                Activar.
+              </p>
+            )}
+
+            {state === "unsupported" && (
+              <p className="text-(--ink-2)">
+                Este navegador no soporta notificaciones del sistema. Igual vas a ver los avisos dentro del
+                panel cuando esté abierto.
+              </p>
+            )}
+
+            <p className="border-t border-(--line) pt-2 text-xs text-(--ink-3)">
+              Cada celular o PC se activa por separado.
             </p>
-          )}
-
-          {state === "ios-install" && (
-            <p className="text-(--ink-2)">
-              En <strong>iPhone</strong> hay que instalar la app primero: tocá <strong>Compartir</strong> →
-              <strong> Agregar a pantalla de inicio</strong>, abrí el sitio desde ese ícono y después tocá
-              Activar.
-            </p>
-          )}
-
-          {state === "unsupported" && (
-            <p className="text-(--ink-2)">
-              Este navegador no soporta notificaciones del sistema. Igual vas a ver los avisos dentro del
-              panel cuando esté abierto.
-            </p>
-          )}
-
-          <p className="border-t border-(--line) pt-2 text-xs text-(--ink-3)">
-            Cada celular o PC se activa por separado.
-          </p>
-        </div>
+          </div>
+        </>
       )}
     </span>
   );

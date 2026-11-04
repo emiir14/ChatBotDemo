@@ -177,14 +177,14 @@ export function showBrowserNotification(
 ): boolean {
   if (!notificationSupported() || Notification.permission !== "granted") return false;
   try {
-    const options: NotificationOptions = {
+    const options: NotificationOptions & { renotify?: boolean } = {
       body,
       tag: "nuevo-lead",
       icon: "/icon-192.png",
       badge: "/icon-192.png",
       renotify: true,
     };
-    const n = new Notification(title, options);
+    const n = new Notification(title, options as NotificationOptions);
     n.onclick = () => {
       window.focus();
       n.close();

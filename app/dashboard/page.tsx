@@ -131,8 +131,8 @@ export default function DashboardPage(): JSX.Element {
   const { data: status } = useSWR<StatusResponse>("/api/dashboard/status", json, {
     // En primer plano cada 4s; en segundo plano más lento, para poder avisar
     // de un chat nuevo aunque la pestaña no esté visible.
-    refreshInterval: visible ? 4000 : 15000,
-    revalidateOnFocus: false,
+    refreshInterval: visible ? 4000 : 8000,
+    revalidateOnFocus: true,
   });
 
   const summaryParams = new URLSearchParams({ period });
@@ -162,7 +162,8 @@ export default function DashboardPage(): JSX.Element {
   });
   const { data: leads, error: leadsError, mutate: mutateLeads } =
     useSWR<LeadsResponse>(`/api/dashboard/leads?${leadsParams}`, json, {
-      revalidateOnFocus: false,
+      refreshInterval: visible ? 8000 : 15000,
+      revalidateOnFocus: true,
       keepPreviousData: true,
     });
 

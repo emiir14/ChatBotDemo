@@ -50,6 +50,12 @@ const metaMessageSchema = z.object({
 
 const changeValueSchema = z.object({
   messages: z.array(metaMessageSchema).optional(),
+  metadata: z
+    .object({
+      display_phone_number: z.string().optional(),
+      phone_number_id: z.string().optional(),
+    })
+    .optional(),
   contacts: z
     .array(
       z.object({
@@ -77,6 +83,7 @@ const webhookSchema = z.object({
 export interface IncomingMessage {
   from: string;
   waId: string;
+  phoneNumberId?: string;
   receivedAt: Date;
   kind: "text" | "other";
   /** Tipo Meta cuando no es texto (audio, image, sticker, location, ...). */
@@ -98,6 +105,7 @@ export function extractIncomingMessages(payload: unknown): IncomingMessage[] {
     for (const change of entry.changes ?? []) {
       const value = change.value;
       if (!value) continue;
+      const phoneNumberId = value.metadata?.phone_number_id;
       const names = new Map<string, string>();
       for (const c of value.contacts ?? []) {
         if (c.wa_id && c.profile?.name) names.set(c.wa_id, c.profile.name);
@@ -108,6 +116,7 @@ export function extractIncomingMessages(payload: unknown): IncomingMessage[] {
           out.push({
             from: m.from,
             waId: m.id,
+            phoneNumberId,
             receivedAt: Number.isNaN(receivedAt.getTime())
               ? new Date()
               : receivedAt,
@@ -119,6 +128,7 @@ export function extractIncomingMessages(payload: unknown): IncomingMessage[] {
           out.push({
             from: m.from,
             waId: m.id,
+            phoneNumberId,
             receivedAt: Number.isNaN(receivedAt.getTime())
               ? new Date()
               : receivedAt,

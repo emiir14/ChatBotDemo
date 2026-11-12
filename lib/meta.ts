@@ -13,6 +13,12 @@ export interface SendResult {
   errorMessage?: string;
 }
 
+export interface MetaCredentials {
+  token?: string | null;
+  phoneNumberId?: string | null;
+  apiVersion?: string | null;
+}
+
 interface MetaSuccess {
   messages?: Array<{ id?: string }>;
 }
@@ -47,13 +53,22 @@ export function buildReadReceiptBody(messageId: string): Record<string, unknown>
 }
 
 /** Base de la API + si está configurada (token y phone number id). */
-function apiBase(): { base: string; configured: boolean } {
+function apiBase(credentials?: MetaCredentials): {
+  base: string;
+  token: string;
+  configured: boolean;
+} {
   const env = getEnv();
-  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID) {
-    return { base: "", configured: false };
+  const token = credentials?.token || env.WHATSAPP_TOKEN;
+  const phoneId = credentials?.phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID;
+  const version = credentials?.apiVersion || env.WHATSAPP_API_VERSION;
+
+  if (!token || !phoneId) {
+    return { base: "", token: "", configured: false };
   }
   return {
-    base: `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}`,
+    base: `https://graph.facebook.com/${version}/${phoneId}`,
+    token,
     configured: true,
   };
 }
@@ -80,8 +95,11 @@ interface PostResult {
 }
 
 /** POST común a /messages con timeout y parseo de errores de Meta. */
-async function postMessages(body: Record<string, unknown>): Promise<PostResult> {
-  const { base, configured } = apiBase();
+async function postMessages(
+  body: Record<string, unknown>,
+  credentials?: MetaCredentials,
+): Promise<PostResult> {
+  const { base, token, configured } = apiBase(credentials);
   if (!configured) {
     return {
       ok: false,
@@ -93,7 +111,7 @@ async function postMessages(body: Record<string, unknown>): Promise<PostResult> 
     const res = await fetch(`${base}/messages`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${getEnv().WHATSAPP_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -123,13 +141,17 @@ async function postMessages(body: Record<string, unknown>): Promise<PostResult> 
 export async function sendWhatsAppText(args: {
   to: string;
   body: string;
+  credentials?: MetaCredentials;
 }): Promise<SendResult> {
-  const sent = await postMessages({
-    messaging_product: "whatsapp",
-    to: normalizePhoneForMeta(args.to),
-    type: "text",
-    text: { body: args.body },
-  });
+  const sent = await postMessages(
+    {
+      messaging_product: "whatsapp",
+      to: normalizePhoneForMeta(args.to),
+      type: "text",
+      text: { body: args.body },
+    },
+    args.credentials,
+  );
   if (!sent.ok) return sent;
   let metaId: string | undefined;
   if (isRecord(sent.data)) {
@@ -146,14 +168,17 @@ export async function sendWhatsAppText(args: {
  * errores solo se ignoran, nunca rompen el flujo). Solo se llama cuando se
  * va a responder, como pide Meta.
  */
-export async function markAsRead(messageId: string): Promise<void> {
-  const { base, configured } = apiBase();
+export async function markAsRead(
+  messageId: string,
+  credentials?: MetaCredentials,
+): Promise<void> {
+  const { base, token, configured } = apiBase(credentials);
   if (!configured) return;
   try {
     await fetch(`${base}/messages`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${getEnv().WHATSAPP_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(buildReadReceiptBody(messageId)),

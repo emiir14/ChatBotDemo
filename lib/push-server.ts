@@ -42,16 +42,18 @@ function configureVapid(): boolean {
 }
 
 /**
- * Envía el aviso a todos los dispositivos suscriptos.
+ * Envía el aviso a todos los dispositivos suscriptos (o solo los del tenant).
  * Limpia suscripciones muertas: si el servicio de push responde 404/410,
  * borra esa fila de Supabase para no seguir reintentando.
  */
-export async function sendPushToAll(payload: PushPayload): Promise<void> {
+export async function sendPushToAll(payload: PushPayload, tenantId?: string): Promise<void> {
   if (!configureVapid()) return;
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("push_subscriptions")
-    .select("endpoint,p256dh,auth");
+  let query = supabase.from("push_subscriptions").select("endpoint,p256dh,auth");
+  if (tenantId) {
+    query = query.or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
+  }
+  const { data, error } = await query;
   if (error) {
     console.error(`[push] no se pudieron leer las suscripciones: ${error.message}`);
     return;

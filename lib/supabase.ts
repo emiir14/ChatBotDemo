@@ -29,6 +29,7 @@ export type MessageRol = "cliente" | "bot" | "sistema";
 
 export interface Vehicle {
   id: string;
+  tenant_id?: string;
   marca: string;
   modelo: string;
   version: string;
@@ -47,6 +48,7 @@ export interface Vehicle {
 
 export interface Lead {
   id: string;
+  tenant_id?: string;
   telefono: string;
   nombre: string | null;
   auto_interes: string | null;

@@ -22,6 +22,7 @@ import { activeFinancing, todayCordoba, type FinancingOption } from "@/lib/finan
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { sendPushToAll } from "@/lib/push-server";
 import { getSupabaseAdmin, type Lead, type Vehicle } from "@/lib/supabase";
+import { getDefaultTenant, getTenantByPhoneNumberId, listActiveTenants } from "@/lib/tenant";
 
 /**
  * Webhook de WhatsApp Cloud API.
@@ -52,6 +53,19 @@ export async function GET(req: Request): Promise<Response> {
       headers: { "Content-Type": "text/plain" },
     });
   }
+
+  // Multi-tenant check: verificar si coincide con el token de algún tenant activo
+  if (mode === "subscribe" && token) {
+    const tenants = await listActiveTenants();
+    const match = tenants.some((t) => t.whatsapp_verify_token === token);
+    if (match) {
+      return new Response(challenge, {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+  }
+
   return new Response("Forbidden", { status: 403 });
 }
 
@@ -141,6 +155,16 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   const supabase = getSupabaseAdmin();
   const masked = maskPhone(msg.from);
 
+  // 0. Resolver el tenant correspondiente a partir del número de WhatsApp
+  const tenant = msg.phoneNumberId
+    ? await getTenantByPhoneNumberId(msg.phoneNumberId)
+    : await getDefaultTenant();
+
+  const metaCredentials = {
+    token: tenant.whatsapp_token,
+    phoneNumberId: tenant.whatsapp_phone_number_id,
+  };
+
   // 1. Deduplicación atómica (Meta puede reenviar el evento).
   const { error: dedupError } = await supabase
     .from("processed_events")
@@ -155,22 +179,38 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   }
 
   // 2. Marcar como leído (best effort, no bloquea).
-  await markAsRead(msg.waId);
+  await markAsRead(msg.waId, metaCredentials);
 
-  // 3. Buscar o crear el lead.
+  // 3. Buscar o crear el lead en el tenant correspondiente.
   let lead: Lead | null = null;
   const { data: existing } = await supabase
     .from("leads")
     .select("*")
+    .eq("tenant_id", tenant.id)
     .eq("telefono", msg.from)
     .maybeSingle();
   lead = (existing as Lead | null) ?? null;
+
+  // Fallback para leads creados antes de la columna tenant_id
+  if (!lead) {
+    const { data: legacy } = await supabase
+      .from("leads")
+      .select("*")
+      .eq("telefono", msg.from)
+      .is("tenant_id", null)
+      .maybeSingle();
+    if (legacy) {
+      lead = legacy as Lead;
+      await supabase.from("leads").update({ tenant_id: tenant.id }).eq("id", lead.id);
+    }
+  }
 
   const nowIso = new Date().toISOString();
   if (!lead) {
     const { data: created, error } = await supabase
       .from("leads")
       .insert({
+        tenant_id: tenant.id,
         telefono: msg.from,
         nombre: msg.senderName ?? null,
         estado: "nuevo",
@@ -213,7 +253,11 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     await supabase.from("leads").delete().eq("id", lead.id);
     const confirm =
       "Listo, reinicié la conversación y borré tu historial. ¿En qué auto estás interesado?";
-    const sent = await sendWhatsAppText({ to: msg.from, body: confirm });
+    const sent = await sendWhatsAppText({
+      to: msg.from,
+      body: confirm,
+      credentials: metaCredentials,
+    });
     console.log(
       `[whatsapp] demo reiniciada para ${masked} (envío ${sent.ok ? "ok" : "falló"})`,
     );
@@ -224,7 +268,11 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   if (!consumeRateLimit(msg.from)) {
     const aviso =
       "Estoy recibiendo muchos mensajes juntos, dame un minutito y seguimos.";
-    const sent = await sendWhatsAppText({ to: msg.from, body: aviso });
+    const sent = await sendWhatsAppText({
+      to: msg.from,
+      body: aviso,
+      credentials: metaCredentials,
+    });
     await saveBotMessage(lead.id, aviso, sent.metaMessageId);
     console.log(`[whatsapp] rate limit para ${masked}`);
     return;
@@ -234,7 +282,11 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   if (msg.kind !== "text") {
     const aviso =
       "Por ahora solo puedo leer mensajes de texto. Escribime con palabras lo que necesitás y te ayudo con los autos.";
-    const sent = await sendWhatsAppText({ to: msg.from, body: aviso });
+    const sent = await sendWhatsAppText({
+      to: msg.from,
+      body: aviso,
+      credentials: metaCredentials,
+    });
     await saveBotMessage(lead.id, aviso, sent.metaMessageId);
     console.log(`[whatsapp] no-textual (${msg.otherType}) de ${masked}`);
     return;
@@ -249,6 +301,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
         .from("vehicles")
         .select("marca,modelo,version,anio,es_0km,km,precio,moneda,combustible,transmision,color,descripcion")
         .eq("estado", "disponible")
+        .or(`tenant_id.eq.${tenant.id},tenant_id.is.null`)
         .order("marca")
         .order("modelo"),
       supabase.from("stock_settings").select("updated_at").eq("id", 1).maybeSingle(),
@@ -258,7 +311,11 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
         .eq("lead_id", lead.id)
         .order("created_at", { ascending: false })
         .limit(11),
-      supabase.from("financing_options").select("*").eq("activo", true),
+      supabase
+        .from("financing_options")
+        .select("*")
+        .eq("activo", true)
+        .or(`tenant_id.eq.${tenant.id},tenant_id.is.null`),
     ]);
 
   const historyAsc = (
@@ -282,6 +339,13 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
         ((financing ?? []) as FinancingOption[]),
         todayCordoba(),
       ),
+      dealership: {
+        name: tenant.nombre,
+        address: tenant.direccion,
+        hours: tenant.horarios,
+      },
+      apiKey: tenant.gemini_api_key,
+      models: tenant.gemini_models,
     });
     reply = result.reply;
     if (result.leadUpdate) {
@@ -336,11 +400,15 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     // Si ni el fallback genérico aplica (acá siempre hay reply), igual
     // garantizamos respuesta. fallbackReply se usa si el modelo devolvió
     // vacío en un caso borde ya cubierto por el schema (min 1).
-    if (!reply) reply = fallbackReply(getEnv().DEALERSHIP_NAME);
+    if (!reply) reply = fallbackReply(tenant.nombre);
   }
 
   // 9. Enviar y guardar (el cliente NUNCA se queda sin respuesta).
-  const sent = await sendWhatsAppText({ to: msg.from, body: reply });
+  const sent = await sendWhatsAppText({
+    to: msg.from,
+    body: reply,
+    credentials: metaCredentials,
+  });
   if (!sent.ok) {
     if (sent.errorCode === 131047) {
       console.warn(
@@ -359,12 +427,15 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   // del after(): no demora la respuesta a Meta ni alarga la ejecución.
   if (pushReason) {
     const nombre = lead.nombre ?? "Sin nombre";
-    await sendPushToAll({
-      title: pushReason === "intervencion" ? "Un chat necesita un vendedor" : "Lead caliente",
-      body: pushInteres ? `${nombre} · ${pushInteres}` : nombre,
-      url: `/dashboard?lead=${lead.id}`,
-      tag: lead.id,
-    });
+    await sendPushToAll(
+      {
+        title: pushReason === "intervencion" ? "Un chat necesita un vendedor" : "Lead caliente",
+        body: pushInteres ? `${nombre} · ${pushInteres}` : nombre,
+        url: `/dashboard?lead=${lead.id}`,
+        tag: lead.id,
+      },
+      tenant.id,
+    );
   }
 }
 

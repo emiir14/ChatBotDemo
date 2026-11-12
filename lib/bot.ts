@@ -168,6 +168,14 @@ export interface GenerateInput {
   stockUpdatedAt?: string | null;
   /** Planes citables (ya filtrados: activos y vigentes). */
   financing?: FinancingOption[];
+  /** Configuración de la concesionaria (para multi-tenant). */
+  dealership?: {
+    name: string;
+    address: string;
+    hours: string;
+  };
+  apiKey?: string | null;
+  models?: string | null;
 }
 
 /** Planes en texto compacto para el contexto (como el stock, sin RAG). */
@@ -479,15 +487,18 @@ async function callModel({
 
 export async function generateBotReply(input: GenerateInput): Promise<GenerateResult> {
   const env = getEnv();
-  if (!env.GEMINI_API_KEY) {
+  const apiKey = input.apiKey || env.GEMINI_API_KEY;
+  if (!apiKey) {
     throw new Error("GEMINI_API_KEY no configurada.");
   }
-  const models = resolveGeminiModels(env);
-  const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+  const models = input.models
+    ? resolveGeminiModels({ GEMINI_MODELS: input.models })
+    : resolveGeminiModels(env);
+  const ai = new GoogleGenAI({ apiKey });
   const systemInstruction = buildSystemPrompt({
-    name: env.DEALERSHIP_NAME,
-    address: env.DEALERSHIP_ADDRESS,
-    hours: env.DEALERSHIP_HOURS,
+    name: input.dealership?.name || env.DEALERSHIP_NAME,
+    address: input.dealership?.address || env.DEALERSHIP_ADDRESS,
+    hours: input.dealership?.hours || env.DEALERSHIP_HOURS,
   });
   const contents = buildUserContent(input, new Date(), input.stockUpdatedAt ?? null);
 

@@ -59,8 +59,21 @@ export function buildEnvTenant(): Tenant {
   };
 }
 
+/** Error explícito: el número de WhatsApp no tiene tenant configurado. */
+export class TenantNotConfiguredError extends Error {
+  constructor(readonly phoneNumberId: string) {
+    super(
+      `No hay un tenant activo con whatsapp_phone_number_id=${phoneNumberId}. ` +
+        "Configuralo en la tabla public.tenants (migración multitenant).",
+    );
+    this.name = "TenantNotConfiguredError";
+  }
+}
+
 /**
  * Obtiene el tenant por su WhatsApp Phone Number ID (el que llega en el webhook de Meta).
+ * Si el número no está configurado, lanza TenantNotConfiguredError: preferimos
+ * fallar de forma visible antes que procesar el mensaje con otro tenant.
  */
 export async function getTenantByPhoneNumberId(
   phoneNumberId: string,
@@ -72,29 +85,28 @@ export async function getTenantByPhoneNumberId(
   }
 
   const supabase = getSupabaseAdmin();
-  try {
-    const { data, error } = await supabase
-      .from("tenants")
-      .select("*")
-      .eq("whatsapp_phone_number_id", phoneNumberId)
-      .eq("activo", true)
-      .maybeSingle();
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("*")
+    .eq("whatsapp_phone_number_id", phoneNumberId)
+    .eq("activo", true)
+    .maybeSingle();
 
-    if (!error && data) {
-      const tenant = data as Tenant;
-      tenantCache.set(cacheKey, {
-        tenant,
-        expiresAt: Date.now() + CACHE_TTL_MS,
-      });
-      return tenant;
-    }
-  } catch {
-    // Si la tabla tenants aún no existe, fallback a env
+  if (error) {
+    throw new Error(
+      `No se pudo resolver el tenant para phone_number_id=${phoneNumberId}: ${error.message}`,
+    );
+  }
+  if (!data) {
+    throw new TenantNotConfiguredError(phoneNumberId);
   }
 
-  // Fallback a env tenant
-  const fallback = buildEnvTenant();
-  return fallback;
+  const tenant = data as Tenant;
+  tenantCache.set(cacheKey, {
+    tenant,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
+  return tenant;
 }
 
 /**

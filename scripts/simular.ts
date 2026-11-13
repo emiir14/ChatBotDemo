@@ -76,6 +76,13 @@ async function main(): Promise<void> {
     );
     process.exit(1);
   }
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!phoneNumberId) {
+    console.error(
+      "Falta WHATSAPP_PHONE_NUMBER_ID en .env.local: el webhook lo usa para resolver el tenant.",
+    );
+    process.exit(1);
+  }
 
   const waId = `wamid.sim-${Date.now()}-${randomUUID().slice(0, 8)}`;
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -108,7 +115,7 @@ async function main(): Promise<void> {
               messaging_product: "whatsapp",
               metadata: {
                 display_phone_number: "5493510000000",
-                phone_number_id: "test-phone-id",
+                phone_number_id: phoneNumberId,
               },
               contacts: [
                 { profile: { name: "Demo Local" }, wa_id: telefono },

@@ -22,7 +22,7 @@ import { activeFinancing, todayCordoba, type FinancingOption } from "@/lib/finan
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { sendPushToAll } from "@/lib/push-server";
 import { getSupabaseAdmin, type Lead, type Vehicle } from "@/lib/supabase";
-import { getDefaultTenant, getTenantByPhoneNumberId, listActiveTenants } from "@/lib/tenant";
+import { getTenantByPhoneNumberId, listActiveTenants } from "@/lib/tenant";
 
 /**
  * Webhook de WhatsApp Cloud API.
@@ -103,6 +103,29 @@ export async function POST(req: Request): Promise<Response> {
     console.log(`[whatsapp] POST recibido, mensajes extraídos: ${incoming.length}`);
   }
 
+  // Resolver el tenant ANTES de responder: si el número no está configurado
+  // preferimos fallar de forma visible (500 → Meta reintenta) en lugar de
+  // procesar el mensaje con otro tenant o perderlo en silencio.
+  if (incoming.length > 0) {
+    try {
+      for (const msg of incoming) {
+        if (!msg.phoneNumberId) {
+          throw new Error(
+            `Mensaje ${msg.waId} sin metadata.phone_number_id: no se puede resolver el tenant.`,
+          );
+        }
+        await getTenantByPhoneNumberId(msg.phoneNumberId);
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error(`[whatsapp] tenant no resuelto: ${detail}`);
+      return NextResponse.json(
+        { error: "Número de WhatsApp no configurado" },
+        { status: 500 },
+      );
+    }
+  }
+
   // 200 inmediato para que Meta no reintente. El after() DEVUELVE las
   // promesas: si el callback fuera sincrónico, Vercel congelaría la función
   // al responder y el trabajo en background moriría a medias.
@@ -155,10 +178,12 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   const supabase = getSupabaseAdmin();
   const masked = maskPhone(msg.from);
 
-  // 0. Resolver el tenant correspondiente a partir del número de WhatsApp
-  const tenant = msg.phoneNumberId
-    ? await getTenantByPhoneNumberId(msg.phoneNumberId)
-    : await getDefaultTenant();
+  // 0. Resolver el tenant correspondiente a partir del número de WhatsApp.
+  // Ya se validó en el POST; acá se sirve de la caché (o vuelve a fallar).
+  if (!msg.phoneNumberId) {
+    throw new Error(`Mensaje ${msg.waId} sin phone_number_id.`);
+  }
+  const tenant = await getTenantByPhoneNumberId(msg.phoneNumberId);
 
   const metaCredentials = {
     token: tenant.whatsapp_token,

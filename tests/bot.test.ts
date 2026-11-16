@@ -40,6 +40,20 @@ describe("parseBotOutput", () => {
     expect(parsed.lead_update).toBeUndefined();
   });
 
+  it("acepta consulta_item para las alertas de stock", () => {
+    const parsed = parseBotOutput(
+      JSON.stringify({ reply: "Ese no lo tenemos.", consulta_item: "Toyota Hilux" }),
+    );
+    expect(parsed.consulta_item).toBe("Toyota Hilux");
+  });
+
+  it("tolera consulta_item null (el modelo a veces lo manda vacío)", () => {
+    const parsed = parseBotOutput(
+      JSON.stringify({ reply: "Hola", consulta_item: null }),
+    );
+    expect(parsed.consulta_item).toBeNull();
+  });
+
   it("lanza con JSON inválido o temperatura inválida", () => {
     expect(() => parseBotOutput("no es json")).toThrow();
     expect(() =>

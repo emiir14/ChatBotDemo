@@ -73,8 +73,13 @@ create table if not exists public.messages (
   rol           text not null check (rol in ('cliente', 'bot', 'sistema')),
   texto         text not null,
   wa_message_id text unique,
+  -- Motivo del rechazo de Meta si el envío falló (null = salió bien).
+  error_envio   text,
   created_at    timestamptz not null default now()
 );
+
+-- Migración para bases ya creadas (idempotente).
+alter table public.messages add column if not exists error_envio text;
 
 -- ----------------------------------------------------------------------------
 -- 4. TABLA processed_events: deduplicación de webhooks de Meta

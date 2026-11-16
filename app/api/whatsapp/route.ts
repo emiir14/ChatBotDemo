@@ -9,7 +9,13 @@ import {
   verifyMetaSignature,
   type IncomingMessage,
 } from "@/lib/whatsapp";
-import { markAsRead, sendWhatsAppText } from "@/lib/meta";
+import {
+  markAsRead,
+  sendWhatsAppText,
+  type MetaCredentials,
+  type SendResult,
+} from "@/lib/meta";
+import { saveBotMessage } from "@/lib/messages";
 import {
   BotUnavailableError,
   busyReply,
@@ -21,8 +27,13 @@ import {
 import { activeFinancing, todayCordoba, type FinancingOption } from "@/lib/financing";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { sendPushToAll } from "@/lib/push-server";
+import { registerStockDemand } from "@/lib/stock-alerts-server";
 import { getSupabaseAdmin, type Lead, type Vehicle } from "@/lib/supabase";
-import { getTenantByPhoneNumberId, listActiveTenants } from "@/lib/tenant";
+import {
+  getTenantByPhoneNumberId,
+  listActiveTenants,
+  metaCredentialsFor,
+} from "@/lib/tenant";
 
 /**
  * Webhook de WhatsApp Cloud API.
@@ -185,9 +196,25 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   }
   const tenant = await getTenantByPhoneNumberId(msg.phoneNumberId);
 
-  const metaCredentials = {
-    token: tenant.whatsapp_token,
-    phoneNumberId: tenant.whatsapp_phone_number_id,
+  // Credenciales del tenant (sin fallback al entorno). Si faltan, el lead se
+  // guarda igual y el motivo queda registrado en messages.error_envio.
+  let metaCredentials: MetaCredentials | null = null;
+  let credentialsError: string | null = null;
+  try {
+    metaCredentials = metaCredentialsFor(tenant);
+  } catch (err) {
+    credentialsError = err instanceof Error ? err.message : String(err);
+    console.error(`[whatsapp] ${credentialsError}`);
+  }
+
+  const sendReply = async (body: string): Promise<SendResult> => {
+    if (!metaCredentials) {
+      return {
+        ok: false,
+        errorMessage: credentialsError ?? "Credenciales de WhatsApp faltantes.",
+      };
+    }
+    return sendWhatsAppText({ to: msg.from, body, credentials: metaCredentials });
   };
 
   // 1. Deduplicación atómica (Meta puede reenviar el evento).
@@ -204,7 +231,9 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   }
 
   // 2. Marcar como leído (best effort, no bloquea).
-  await markAsRead(msg.waId, metaCredentials);
+  if (metaCredentials) {
+    await markAsRead(msg.waId, metaCredentials);
+  }
 
   // 3. Buscar o crear el lead en el tenant correspondiente.
   let lead: Lead | null = null;
@@ -278,11 +307,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     await supabase.from("leads").delete().eq("id", lead.id);
     const confirm =
       "Listo, reinicié la conversación y borré tu historial. ¿En qué auto estás interesado?";
-    const sent = await sendWhatsAppText({
-      to: msg.from,
-      body: confirm,
-      credentials: metaCredentials,
-    });
+    const sent = await sendReply(confirm);
     console.log(
       `[whatsapp] demo reiniciada para ${masked} (envío ${sent.ok ? "ok" : "falló"})`,
     );
@@ -293,12 +318,8 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   if (!consumeRateLimit(msg.from)) {
     const aviso =
       "Estoy recibiendo muchos mensajes juntos, dame un minutito y seguimos.";
-    const sent = await sendWhatsAppText({
-      to: msg.from,
-      body: aviso,
-      credentials: metaCredentials,
-    });
-    await saveBotMessage(lead.id, aviso, sent.metaMessageId);
+    const sent = await sendReply(aviso);
+    await saveBotMessage(lead.id, aviso, sent);
     console.log(`[whatsapp] rate limit para ${masked}`);
     return;
   }
@@ -307,12 +328,8 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   if (msg.kind !== "text") {
     const aviso =
       "Por ahora solo puedo leer mensajes de texto. Escribime con palabras lo que necesitás y te ayudo con los autos.";
-    const sent = await sendWhatsAppText({
-      to: msg.from,
-      body: aviso,
-      credentials: metaCredentials,
-    });
-    await saveBotMessage(lead.id, aviso, sent.metaMessageId);
+    const sent = await sendReply(aviso);
+    await saveBotMessage(lead.id, aviso, sent);
     console.log(`[whatsapp] no-textual (${msg.otherType}) de ${masked}`);
     return;
   }
@@ -353,6 +370,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
 
   let reply: string;
   let needsHuman = false;
+  let consultaItem: string | undefined;
   try {
     const result = await generateBotReply({
       lead,
@@ -373,6 +391,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
       models: tenant.gemini_models,
     });
     reply = result.reply;
+    consultaItem = result.consultaItem;
     if (result.leadUpdate) {
       const patch: Record<string, string | boolean | null> = {};
       for (const [key, value] of Object.entries(result.leadUpdate)) {
@@ -428,12 +447,27 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
     if (!reply) reply = fallbackReply(tenant.nombre);
   }
 
+  // 8b. Alertas de stock: el bot marca el ítem puntual que pidió el cliente.
+  // Si no está disponible, queda registrado para avisar cuando ingrese.
+  // Un fallo acá no debe dejar al cliente sin respuesta: queda en los logs.
+  if (consultaItem) {
+    try {
+      await registerStockDemand(supabase, {
+        tenantId: tenant.id,
+        leadId: lead.id,
+        itemText: consultaItem,
+      });
+    } catch (err) {
+      console.error(
+        `[whatsapp] no se pudo registrar la demanda de stock (${masked}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
   // 9. Enviar y guardar (el cliente NUNCA se queda sin respuesta).
-  const sent = await sendWhatsAppText({
-    to: msg.from,
-    body: reply,
-    credentials: metaCredentials,
-  });
+  const sent = await sendReply(reply);
   if (!sent.ok) {
     if (sent.errorCode === 131047) {
       console.warn(
@@ -443,7 +477,7 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
       console.error(`[whatsapp] envío falló (${masked}): ${sent.errorMessage}`);
     }
   }
-  await saveBotMessage(lead.id, reply, sent.metaMessageId);
+  await saveBotMessage(lead.id, reply, sent);
   console.log(
     `[whatsapp] respuesta ${sent.ok ? "enviada" : "NO enviada"} a ${masked}${needsHuman ? " (derivado a humano)" : ""}`,
   );
@@ -464,20 +498,3 @@ async function handleIncoming(msg: IncomingMessage): Promise<void> {
   }
 }
 
-async function saveBotMessage(
-  leadId: string,
-  texto: string,
-  waMessageId: string | undefined,
-): Promise<void> {
-  const supabase = getSupabaseAdmin();
-  await supabase.from("messages").insert({
-    lead_id: leadId,
-    rol: "bot",
-    texto,
-    wa_message_id: waMessageId ?? null,
-  });
-  await supabase
-    .from("leads")
-    .update({ last_bot_reply_at: new Date().toISOString() })
-    .eq("id", leadId);
-}

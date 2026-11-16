@@ -24,7 +24,7 @@ export async function GET(
   }
   const { data: messages, error: msgError } = await supabase
     .from("messages")
-    .select("id,rol,texto,wa_message_id,created_at")
+    .select("id,rol,texto,wa_message_id,error_envio,created_at")
     .eq("lead_id", id)
     .order("created_at", { ascending: true });
   if (msgError) {

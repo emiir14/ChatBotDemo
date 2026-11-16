@@ -24,8 +24,8 @@ const envSchema = z.object({
   GEMINI_MODELS: z.string().min(1).optional(),
 
   // WhatsApp Cloud API
-  WHATSAPP_TOKEN: z.string().min(1).optional(),
-  WHATSAPP_PHONE_NUMBER_ID: z.string().min(1).optional(),
+  // Las credenciales del número (token + phone_number_id) viven en la tabla
+  // public.tenants, una por concesionaria. Acá solo queda config de la app.
   WHATSAPP_VERIFY_TOKEN: z.string().min(1).optional(),
   WHATSAPP_API_VERSION: z.string().min(1).default("v24.0"),
   META_APP_SECRET: z.string().min(1).optional(),

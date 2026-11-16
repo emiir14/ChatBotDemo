@@ -14,6 +14,11 @@ export const botOutputSchema = z.object({
   // Sin .max(): si el modelo se pasa, sanitizeReply recorta (un .max acá
   // dispararía una llamada extra de reparación innecesaria).
   reply: z.string().min(1),
+  /**
+   * Ítem puntual que pidió el cliente ("Toyota Hilux"). Se usa para las
+   * alertas de stock: si no estaba disponible, se avisa cuando ingresa.
+   */
+  consulta_item: z.string().nullable().optional(),
   lead_update: z
     .object({
       nombre: z.string().optional(),
@@ -69,6 +74,7 @@ CALIFICACIÓN (de a poco, como una charla, no un interrogatorio)
 
 STOCK Y PRECIOS (regla dura)
 - Solo ofrecé autos que estén en el STOCK con estado "disponible". Si lo que pide no está, decilo y sugerí alternativas parecidas que sí estén.
+- Si el cliente pregunta por un modelo o versión puntual (aunque no esté en el stock), devolvé en consulta_item ese ítem como "marca modelo" (ej: "Toyota Hilux"). Si habla de algo genérico ("un auto", "una camioneta", "algo económico"), omití consulta_item.
 - Hablá de disponibilidad de forma relativa ("según nuestro stock actual") y aclará que un asesor confirma la disponibilidad final. Nunca afirmes disponibilidad absoluta.
 - NUNCA inventes precios, disponibilidad, tasas, cuotas, descuentos, plazos de entrega ni condiciones. Si un dato no está en el stock o en tus datos, decí que lo confirma un asesor.
 - Financiación, permutas y precios finales: das la info general disponible y ofrecés que un asesor lo contacte.
@@ -92,8 +98,8 @@ TEMPERATURA DEL LEAD
 - frio: consulta general, sin modelo definido ni urgencia, o solo pregunta precios sueltos.
 
 FORMATO DE RESPUESTA
-- Respondé SOLO con un JSON válido con esta forma: {"reply": "texto para el cliente, máximo 3 oraciones, sin markdown, apto para WhatsApp", "lead_update": {"nombre": ..., "auto_interes": ..., "presupuesto": ..., "permuta": ..., "financiacion": true/false, "urgencia": ..., "temperatura": "caliente|tibio|frio", "requiere_humano": true/false, "resumen": "resumen corto del lead"}}.
-- En lead_update incluí SOLO lo que el cliente dijo o se deduce con claridad. Lo que no sepas, no lo incluyas (no inventes ni completes con null).`;
+- Respondé SOLO con un JSON válido con esta forma: {"reply": "texto para el cliente, máximo 3 oraciones, sin markdown, apto para WhatsApp", "consulta_item": "marca modelo (solo si preguntó por un ítem puntual)", "lead_update": {"nombre": ..., "auto_interes": ..., "presupuesto": ..., "permuta": ..., "financiacion": true/false, "urgencia": ..., "temperatura": "caliente|tibio|frio", "requiere_humano": true/false, "resumen": "resumen corto del lead"}}.
+- En consulta_item y lead_update incluí SOLO lo que el cliente dijo o se deduce con claridad. Lo que no sepas, no lo incluyas (no inventes ni completes con null).`;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +214,8 @@ export function formatFinancing(options: FinancingOption[]): string {
 
 export interface GenerateResult {
   reply: string;
+  /** Ítem puntual consultado por el cliente (para alertas de stock). */
+  consultaItem?: string;
   leadUpdate?: NonNullable<BotOutput["lead_update"]>;
   /** Modelo que finalmente respondió (útil para el health check). */
   model?: string;
@@ -393,6 +401,7 @@ const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     reply: { type: Type.STRING },
+    consulta_item: { type: Type.STRING },
     lead_update: {
       type: Type.OBJECT,
       properties: {
@@ -450,6 +459,7 @@ async function callModel({
         const parsed = parseBotOutput(raw);
         return {
           reply: sanitizeReply(parsed.reply),
+          consultaItem: parsed.consulta_item ?? undefined,
           leadUpdate: parsed.lead_update,
           model,
         };
@@ -470,6 +480,7 @@ async function callModel({
         const repaired = parseBotOutput(repair.text?.trim() ?? "");
         return {
           reply: sanitizeReply(repaired.reply),
+          consultaItem: repaired.consulta_item ?? undefined,
           leadUpdate: repaired.lead_update,
           model,
         };

@@ -2,6 +2,11 @@ import { getEnv } from "@/lib/env";
 
 /**
  * Llamadas a WhatsApp Cloud API (Graph API de Meta).
+ *
+ * Las credenciales (token + phone_number_id) SIEMPRE se reciben explícitas:
+ * salen del tenant que atiende la conversación. No hay fallback silencioso al
+ * entorno: si el tenant no las tiene, el envío falla de forma visible.
+ *
  * Toda función es defensiva: nunca lanza, siempre devuelve un resultado.
  */
 
@@ -14,9 +19,8 @@ export interface SendResult {
 }
 
 export interface MetaCredentials {
-  token?: string | null;
-  phoneNumberId?: string | null;
-  apiVersion?: string | null;
+  token: string;
+  phoneNumberId: string;
 }
 
 interface MetaSuccess {
@@ -52,31 +56,26 @@ export function buildReadReceiptBody(messageId: string): Record<string, unknown>
   };
 }
 
-/** Base de la API + si está configurada (token y phone number id). */
-function apiBase(credentials?: MetaCredentials): {
-  base: string;
-  token: string;
-  configured: boolean;
-} {
-  const env = getEnv();
-  const token = credentials?.token || env.WHATSAPP_TOKEN;
-  const phoneId = credentials?.phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID;
-  const version = credentials?.apiVersion || env.WHATSAPP_API_VERSION;
-
+/**
+ * Base de la API a partir de las credenciales del tenant.
+ * Lanza un error claro si faltan datos: nunca cae al entorno.
+ */
+function apiBase(credentials: MetaCredentials): { base: string; token: string } {
+  const token = credentials.token?.trim();
+  const phoneId = credentials.phoneNumberId?.trim();
   if (!token || !phoneId) {
-    return { base: "", token: "", configured: false };
+    throw new Error(
+      "Credenciales de WhatsApp incompletas: el tenant necesita token y phone_number_id.",
+    );
   }
-  return {
-    base: `https://graph.facebook.com/${version}/${phoneId}`,
-    token,
-    configured: true,
-  };
+  const version = getEnv().WHATSAPP_API_VERSION;
+  return { base: `https://graph.facebook.com/${version}/${phoneId}`, token };
 }
 
 /**
  * Normalización aplicable al enviar: solo si NORMALIZE_AR_PHONE=true
- * (números de prueba con lista permitida sin el 9). Con número real,
- * ponerla en "false".
+ * (números de prueba con lista permitida sin el 9). Con número real, ponerla
+ * en "false".
  */
 export function normalizePhoneForMeta(phone: string): string {
   try {
@@ -97,14 +96,17 @@ interface PostResult {
 /** POST común a /messages con timeout y parseo de errores de Meta. */
 async function postMessages(
   body: Record<string, unknown>,
-  credentials?: MetaCredentials,
+  credentials: MetaCredentials,
 ): Promise<PostResult> {
-  const { base, token, configured } = apiBase(credentials);
-  if (!configured) {
+  let base: string;
+  let token: string;
+  try {
+    ({ base, token } = apiBase(credentials));
+  } catch (err) {
     return {
       ok: false,
       data: null,
-      errorMessage: "WhatsApp no configurado (falta TOKEN o PHONE_NUMBER_ID).",
+      errorMessage: err instanceof Error ? err.message : "Credenciales inválidas.",
     };
   }
   try {
@@ -141,7 +143,7 @@ async function postMessages(
 export async function sendWhatsAppText(args: {
   to: string;
   body: string;
-  credentials?: MetaCredentials;
+  credentials: MetaCredentials;
 }): Promise<SendResult> {
   const sent = await postMessages(
     {
@@ -170,11 +172,10 @@ export async function sendWhatsAppText(args: {
  */
 export async function markAsRead(
   messageId: string,
-  credentials?: MetaCredentials,
+  credentials: MetaCredentials,
 ): Promise<void> {
-  const { base, token, configured } = apiBase(credentials);
-  if (!configured) return;
   try {
+    const { base, token } = apiBase(credentials);
     await fetch(`${base}/messages`, {
       method: "POST",
       headers: {
@@ -212,10 +213,14 @@ export function buildTemplateBody(args: {
 /** Envía una plantilla aprobada (p. ej. para el botón "Enviarme WhatsApp"). */
 export async function sendWhatsAppTemplate(args: {
   to: string;
+  credentials: MetaCredentials;
   name?: string;
   language?: string;
 }): Promise<SendResult> {
-  const sent = await postMessages(buildTemplateBody(args));
+  const sent = await postMessages(
+    buildTemplateBody({ to: args.to, name: args.name, language: args.language }),
+    args.credentials,
+  );
   if (!sent.ok) {
     return { ok: false, errorCode: sent.errorCode, errorMessage: sent.errorMessage };
   }

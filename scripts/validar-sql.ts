@@ -43,6 +43,14 @@ async function main(): Promise<void> {
   await run("supabase/migration_dashboard.sql");
   await run("supabase/migration_stock.sql");
   await run("supabase/migration_financing.sql");
+  await run("supabase/migration_push.sql");
+  // Recontacto agrega `recontactado_agente_at`, que usa analytics.
+  await run("supabase/migration_recontacto.sql");
+  await run("supabase/migration_analytics.sql");
+  // Multitenant crea `tenants` y agrega tenant_id: va antes que las
+  // migraciones que referencian esa tabla (stock_demands).
+  await run("supabase/migration_multitenant.sql");
+  await run("supabase/migration_stock_alerts.sql");
 
   // Financiación: tabla + plantilla precargada (idempotente)
   const fin = await one<number>("SELECT count(*)::int AS v FROM financing_options");
@@ -73,6 +81,31 @@ async function main(): Promise<void> {
   assert((await one<number>("SELECT count(*)::int AS v FROM vehicles")) === 20, "20 vehículos");
   assert((await one<number>("SELECT count(*)::int AS v FROM leads WHERE origen_demo")) === 12, "12 leads demo iniciales");
 
+  // Alertas de stock: tabla, tenant inicial, unicidad y cascade al borrar lead
+  const tenant = await one<string>("SELECT id::text AS v FROM tenants WHERE slug = 'astra'");
+  assert(!!tenant, "tenant inicial 'astra'");
+  await db.exec(`INSERT INTO leads (telefono, tenant_id) VALUES ('5490000000001', '${tenant}');`);
+  await db.exec(
+    `INSERT INTO stock_demands (tenant_id, lead_id, item_key, item_label)
+     SELECT '${tenant}', id, 'hilux', 'Toyota Hilux' FROM leads WHERE telefono = '5490000000001';`,
+  );
+  assert((await one<number>("SELECT count(*)::int AS v FROM stock_demands")) === 1, "demanda de stock registrada");
+  let dupRejected = false;
+  try {
+    await db.exec(
+      `INSERT INTO stock_demands (tenant_id, lead_id, item_key, item_label)
+       SELECT '${tenant}', id, 'hilux', 'Toyota Hilux' FROM leads WHERE telefono = '5490000000001';`,
+    );
+  } catch {
+    dupRejected = true;
+  }
+  assert(dupRejected, "una demanda por lead e ítem");
+  await db.exec("DELETE FROM leads WHERE telefono = '5490000000001';");
+  assert(
+    (await one<number>("SELECT count(*)::int AS v FROM stock_demands")) === 0,
+    "borrar el lead limpia sus demandas (cascade)",
+  );
+
   await run("supabase/refresh_demo_data.sql");
   const n = await one<number>("SELECT count(*)::int AS v FROM leads WHERE origen_demo");
   assert(n >= 60 && n <= 80, `~70 leads demo (hay ${n})`);
@@ -100,16 +133,17 @@ async function main(): Promise<void> {
   );
   assert(mods >= 10, `variedad de modelos (${mods})`);
 
-  // Funciones del panel
-  const sum = await db.query("SELECT dashboard_summary(now() - interval '30 days', now()) AS s");
+  // Funciones del panel (pasamos p_tenant_id explícito: las versiones
+  // multi-tenant tienen default y en SQL plano un llamado de 2 args es ambiguo).
+  const sum = await db.query("SELECT dashboard_summary(now() - interval '30 days', now(), null) AS s");
   const s = (sum.rows[0] as { s: Record<string, unknown> }).s;
   console.log("summary:", JSON.stringify(s).slice(0, 400));
   assert(typeof s === "object" && s !== null, "dashboard_summary devuelve JSON");
-  const heat = await db.query("SELECT * FROM dashboard_heatmap(now() - interval '7 days', now())");
+  const heat = await db.query("SELECT * FROM dashboard_heatmap(now() - interval '7 days', now(), null)");
   assert(heat.rows.length > 0, `heatmap con celdas (${heat.rows.length})`);
-  const daily = await db.query("SELECT * FROM dashboard_daily(now() - interval '7 days', now())");
+  const daily = await db.query("SELECT * FROM dashboard_daily(now() - interval '7 days', now(), null)");
   assert(daily.rows.length > 0, `daily con días (${daily.rows.length})`);
-  const models = await db.query("SELECT * FROM dashboard_models(now() - interval '30 days', now())");
+  const models = await db.query("SELECT * FROM dashboard_models(now() - interval '30 days', now(), null)");
   assert(models.rows.length > 3, `modelos (${models.rows.length})`);
 
   // TZ: domingo → fuera de horario

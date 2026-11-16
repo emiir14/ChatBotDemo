@@ -116,6 +116,8 @@ export interface ChatMessage {
   texto: string;
   /** Null = Meta lo rechazó (el panel lo muestra, pero no llegó). */
   wa_message_id?: string | null;
+  /** Motivo del rechazo de Meta; null si el envío salió bien. */
+  error_envio?: string | null;
   created_at: string;
 }
 
@@ -123,4 +125,46 @@ export interface StatusResponse {
   leadsTotal: number;
   lastChange: string | null;
   actionCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Alertas de stock
+// ---------------------------------------------------------------------------
+
+export type StockDemandEstado = "pendiente" | "disponible" | "descartado";
+
+export interface StockAlertItem {
+  id: string;
+  lead_id: string;
+  item_key: string;
+  item_label: string;
+  estado: StockDemandEstado;
+  asked_at: string;
+  resolved_at: string | null;
+  resolved_vehicle_id: string | null;
+  lead: {
+    id: string;
+    telefono: string;
+    nombre: string | null;
+    auto_interes: string | null;
+    origen_demo: boolean;
+  } | null;
+  vehicle: {
+    id: string;
+    marca: string;
+    modelo: string;
+    version: string | null;
+    anio: number;
+    precio: number;
+    moneda: string;
+  } | null;
+}
+
+export interface StockAlertsResponse {
+  items: StockAlertItem[];
+  counts: {
+    disponible: number;
+    pendiente: number;
+    descartado: number;
+  };
 }

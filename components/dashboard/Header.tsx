@@ -1,8 +1,9 @@
 "use client";
 
-import { BarChart3, Boxes, CalendarDays, LayoutDashboard, LogOut, Moon, Percent, Sun, Trash2, X } from "lucide-react";
+import { BellRing, BarChart3, Boxes, CalendarDays, LayoutDashboard, LogOut, Moon, Percent, Sun, Trash2, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore, type JSX, type ReactNode } from "react";
+import useSWR from "swr";
 import { Button } from "@/components/ui/Button";
 import { PeriodFilter } from "./PeriodFilter";
 import type { PeriodKey } from "@/lib/metrics";
@@ -16,11 +17,29 @@ export interface CustomRange {
 }
 
 const NAV = [
-  { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
-  { href: "/dashboard/embudo", label: "Embudo", icon: BarChart3 },
-  { href: "/dashboard/stock", label: "Stock", icon: Boxes },
-  { href: "/dashboard/financiacion", label: "Financiación", icon: Percent },
+  { href: "/dashboard", label: "Panel", icon: LayoutDashboard, title: "Panel: métricas, leads y actividad" },
+  { href: "/dashboard/embudo", label: "Embudo", icon: BarChart3, title: "Embudo: tablero kanban por etapa" },
+  { href: "/dashboard/stock", label: "Stock", icon: Boxes, title: "Stock: autos, precios e importación" },
+  { href: "/dashboard/financiacion", label: "Financiación", icon: Percent, title: "Financiación: planes que cita el bot" },
+  { href: "/dashboard/alertas", label: "Alertas", icon: BellRing, title: "Alertas: ítems pedidos que entraron al stock" },
 ];
+
+/**
+ * Contador de alertas nuevas para el badge de la navegación. Si la consulta
+ * falla, el badge simplemente no se muestra: no rompe el panel.
+ */
+function useAlertCount(): number {
+  const { data } = useSWR<{ nuevos: number }>(
+    "/api/dashboard/alerts/summary",
+    async (url: string) => {
+      const res = await fetch(url);
+      if (!res.ok) return { nuevos: 0 };
+      return (await res.json()) as { nuevos: number };
+    },
+    { refreshInterval: 30000, revalidateOnFocus: true },
+  );
+  return data?.nuevos ?? 0;
+}
 
 /** Pequeño store del tema oscuro: localStorage + listeners (sin setState en efectos). */
 const themeListeners = new Set<() => void>();
@@ -195,6 +214,7 @@ export function Shell({
 }): JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
+  const alertCount = useAlertCount();
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -233,13 +253,18 @@ export function Shell({
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
-                title={n.href === "/dashboard" ? "Panel: métricas, leads y actividad" : n.href === "/dashboard/embudo" ? "Embudo: tablero kanban por etapa" : "Stock: autos, precios e importación"}
+                title={n.title}
                 className={`flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-[0.95rem] font-semibold transition-all ${
                   active ? "bg-white/12 text-white shadow-inner" : "text-white/65 hover:bg-white/6 hover:text-white"
                 }`}
               >
                 <Icon size={18} aria-hidden="true" />
                 {n.label}
+                {n.href === "/dashboard/alertas" && alertCount > 0 && (
+                  <span className="badge badge-hot ml-auto" title={`${alertCount} alertas nuevas`}>
+                    {alertCount > 9 ? "9+" : alertCount}
+                  </span>
+                )}
               </a>
             );
           })}
@@ -424,7 +449,7 @@ export function Shell({
         aria-label="Secciones"
         className="fixed inset-x-0 bottom-0 z-30 border-t border-(--line) bg-(--surface-2)/98 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
       >
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {NAV.map((n) => {
             const active = pathname === n.href;
             const Icon = n.icon;
@@ -433,12 +458,22 @@ export function Shell({
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
-                title={n.href === "/dashboard" ? "Panel: métricas, leads y actividad" : n.href === "/dashboard/embudo" ? "Embudo: tablero kanban por etapa" : "Stock: autos, precios e importación"}
+                title={n.title}
                 className={`flex min-h-[60px] flex-col items-center justify-center gap-0.5 text-[0.7rem] font-bold transition-colors ${
                   active ? "text-(--accent)" : "text-(--ink-3)"
                 }`}
               >
-                <Icon size={20} aria-hidden="true" />
+                <span className="relative">
+                  <Icon size={20} aria-hidden="true" />
+                  {n.href === "/dashboard/alertas" && alertCount > 0 && (
+                    <span
+                      className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-(--hot) px-1 text-[0.6rem] leading-none text-white"
+                      title={`${alertCount} alertas nuevas`}
+                    >
+                      {alertCount > 9 ? "9+" : alertCount}
+                    </span>
+                  )}
+                </span>
                 {n.label}
                 {active && <span className="h-1 w-8 rounded-full bg-(--accent)" aria-hidden="true" />}
               </a>

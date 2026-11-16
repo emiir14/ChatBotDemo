@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getEnv, isDemoMode } from "@/lib/env";
-import { sendWhatsAppTemplate } from "@/lib/meta";
+import { sendWhatsAppTemplate, type MetaCredentials } from "@/lib/meta";
+import { getDefaultTenant, metaCredentialsFor } from "@/lib/tenant";
 
 const bodySchema = z.object({
   /** Destinatario en dígitos (ej. 5493515550101). Debe ser tester del número. */
@@ -36,7 +37,20 @@ export async function POST(req: Request): Promise<NextResponse> {
       { status: 403 },
     );
   }
-  const sent = await sendWhatsAppTemplate({ to: parsed.data.to });
+  // Credenciales del tenant principal (sin fallback al entorno).
+  let credentials: MetaCredentials;
+  try {
+    credentials = metaCredentialsFor(await getDefaultTenant());
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Credenciales no configuradas" },
+      { status: 500 },
+    );
+  }
+  const sent = await sendWhatsAppTemplate({
+    to: parsed.data.to,
+    credentials,
+  });
   if (!sent.ok) {
     return NextResponse.json(
       { error: `Meta no lo aceptó: ${sent.errorMessage}` },

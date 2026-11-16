@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { syncStockDemandsForPanel } from "@/lib/stock-alerts-server";
 import {
   logStockChange,
   touchStockSettings,
@@ -67,5 +68,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     detalle: `${parsed.data.marca} ${parsed.data.modelo} ${parsed.data.version}`.trim(),
   });
   await touchStockSettings(supabase);
-  return NextResponse.json({ ok: true });
+  // Si el ítem que entró al stock lo había pedido un cliente, avisar.
+  const alerts = await syncStockDemandsForPanel(supabase);
+  return NextResponse.json({ ok: true, alerts });
 }

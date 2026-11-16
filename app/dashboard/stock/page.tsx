@@ -144,10 +144,14 @@ export default function StockPage(): JSX.Element {
           body: JSON.stringify(value),
         },
       );
-      const out = (await res.json()) as { error?: string };
+      const out = (await res.json()) as { error?: string; alerts?: number };
       if (!res.ok) throw new Error(out.error ?? "No se pudo guardar");
       setModal(null);
-      setToast(isEdit ? "Auto actualizado" : "Auto agregado al stock");
+      const alertsTxt =
+        out.alerts && out.alerts > 0
+          ? ` · ${out.alerts} alerta${out.alerts === 1 ? "" : "s"} de stock`
+          : "";
+      setToast((isEdit ? "Auto actualizado" : "Auto agregado al stock") + alertsTxt);
       refresh();
       if (prev && value.estado === "vendido" && prev.estado !== "vendido") {
         setSoldConfirm({ id: prev.id, codigo: prev.codigo });
@@ -169,7 +173,12 @@ export default function StockPage(): JSX.Element {
         body: JSON.stringify({ estado }),
       });
       if (!res.ok) throw new Error();
-      setToast(`${v.codigo} → ${estado}`);
+      const out = (await res.json().catch(() => ({}))) as { alerts?: number };
+      const alertsTxt =
+        out.alerts && out.alerts > 0
+          ? ` · ${out.alerts} alerta${out.alerts === 1 ? "" : "s"} de stock`
+          : "";
+      setToast(`${v.codigo} → ${estado}${alertsTxt}`);
       refresh();
       if (estado === "vendido") setSoldConfirm({ id: v.id, codigo: v.codigo });
     } catch {

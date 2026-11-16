@@ -5,7 +5,9 @@ import { getEnv } from "@/lib/env";
 import { resolveGeminiModels } from "@/lib/bot";
 import { getSupabaseAdmin, type Lead } from "@/lib/supabase";
 import { isWithin24hWindow } from "@/lib/time";
-import { sendWhatsAppText } from "@/lib/meta";
+import { sendWhatsAppText, type MetaCredentials } from "@/lib/meta";
+import { saveBotMessage } from "@/lib/messages";
+import { getDefaultTenant, getTenantById, metaCredentialsFor } from "@/lib/tenant";
 import { WINDOW_EXPIRED_MESSAGE } from "@/components/dashboard/window-message";
 
 const draftSchema = z.object({ leadId: z.string().uuid(), step: z.literal("draft") });
@@ -90,7 +92,28 @@ export async function POST(req: Request): Promise<NextResponse> {
         { status: 403 },
       );
     }
-    const sent = await sendWhatsAppText({ to: leadRow.telefono, body: text });
+    // Credenciales del tenant dueño del lead (sin fallback al entorno).
+    let credentials: MetaCredentials;
+    try {
+      const tenant = leadRow.tenant_id
+        ? await getTenantById(leadRow.tenant_id)
+        : await getDefaultTenant();
+      if (!tenant) {
+        throw new Error(`No existe el tenant ${leadRow.tenant_id ?? "por defecto"}.`);
+      }
+      credentials = metaCredentialsFor(tenant);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await saveBotMessage(leadRow.id, text, { ok: false, errorMessage: message });
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+    const sent = await sendWhatsAppText({
+      to: leadRow.telefono,
+      body: text,
+      credentials,
+    });
+    // Se guarda siempre: si Meta lo rechazó, el motivo queda en error_envio.
+    await saveBotMessage(leadRow.id, text, sent);
     if (!sent.ok && sent.errorCode === 131047) {
       return NextResponse.json(
         { ok: false, windowExpired: true, message: WINDOW_EXPIRED_MESSAGE },
@@ -103,15 +126,9 @@ export async function POST(req: Request): Promise<NextResponse> {
         { status: 502 },
       );
     }
-    await supabase.from("messages").insert({
-      lead_id: leadRow.id,
-      rol: "bot",
-      texto: text,
-      wa_message_id: sent.metaMessageId ?? null,
-    });
     await supabase
       .from("leads")
-      .update({ last_bot_reply_at: new Date().toISOString(), estado: "recontactado" })
+      .update({ estado: "recontactado" })
       .eq("id", leadRow.id);
     return NextResponse.json({ ok: true, simulated: false });
   }

@@ -60,12 +60,17 @@ export function ImportWizard({ onApplied }: { onApplied: () => void }): JSX.Elem
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ step: "apply", mode, rows: preview.rows, markSold }),
       });
-      const data = (await res.json()) as { ok?: boolean; altas?: number; modificados?: number; error?: string };
+      const data = (await res.json()) as { ok?: boolean; altas?: number; modificados?: number; alerts?: number; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudo aplicar");
+      const alertsTxt =
+        data.alerts && data.alerts > 0
+          ? ` ${data.alerts} alerta${data.alerts === 1 ? "" : "s"} de stock.`
+          : "";
       setDone(
-        mode === "replace"
+        (mode === "replace"
           ? `Base reemplazada: ${data.altas} vehículos.`
-          : `Listo: ${data.altas} altas, ${data.modificados} modificados${markSold.length > 0 ? `, ${markSold.length} marcados vendidos` : ""}.`,
+          : `Listo: ${data.altas} altas, ${data.modificados} modificados${markSold.length > 0 ? `, ${markSold.length} marcados vendidos` : ""}.`) +
+          alertsTxt,
       );
       setPreview(null);
       setFile(null);

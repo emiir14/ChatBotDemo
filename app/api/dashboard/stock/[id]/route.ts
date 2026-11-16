@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { syncStockDemandsForPanel } from "@/lib/stock-alerts-server";
 import { logStockChange, touchStockSettings, vehicleInputSchema } from "@/lib/stock-server";
 
 const UUID_RE =
@@ -58,7 +59,9 @@ export async function PATCH(
       : `Campos editados: ${Object.keys(parsed.data).join(", ")}`,
   });
   await touchStockSettings(supabase);
-  return NextResponse.json({ ok: true });
+  // El cambio puede haber dejado disponible un ítem que un cliente pidió.
+  const alerts = await syncStockDemandsForPanel(supabase);
+  return NextResponse.json({ ok: true, alerts });
 }
 
 /** DELETE /api/dashboard/stock/[id] — baja definitiva (resetea la frescura). */

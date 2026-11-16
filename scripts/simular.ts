@@ -16,6 +16,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createClient } from "@supabase/supabase-js";
 
 function loadLocalEnv(): void {
   const candidates = [".env.local", ".env"];
@@ -49,6 +50,47 @@ function arg(name: string, fallback?: string): string | undefined {
   return fallback;
 }
 
+/**
+ * El phone_number_id ya no vive en el entorno: es una credencial del tenant.
+ * Se lee el tenant activo más antiguo de public.tenants (el mismo que usa el
+ * panel como "tenant por defecto").
+ */
+async function resolvePhoneNumberId(): Promise<string> {
+  const url = process.env.SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.error(
+      "Falta SUPABASE_URL y SUPABASE_SECRET_KEY en .env.local: el simulador lee el phone_number_id del tenant.",
+    );
+    process.exit(1);
+  }
+  const supabase = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("slug, whatsapp_phone_number_id")
+    .eq("activo", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error(`No se pudo leer public.tenants: ${error.message}`);
+    process.exit(1);
+  }
+  if (!data?.whatsapp_phone_number_id) {
+    console.error(
+      "No hay un tenant activo con whatsapp_phone_number_id en public.tenants.",
+    );
+    process.exit(1);
+  }
+  console.log(
+    `Tenant: ${data.slug} · phone_number_id ${data.whatsapp_phone_number_id}`,
+  );
+  return data.whatsapp_phone_number_id;
+}
+
 async function main(): Promise<void> {
   loadLocalEnv();
 
@@ -76,13 +118,7 @@ async function main(): Promise<void> {
     );
     process.exit(1);
   }
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!phoneNumberId) {
-    console.error(
-      "Falta WHATSAPP_PHONE_NUMBER_ID en .env.local: el webhook lo usa para resolver el tenant.",
-    );
-    process.exit(1);
-  }
+  const phoneNumberId = await resolvePhoneNumberId();
 
   const waId = `wamid.sim-${Date.now()}-${randomUUID().slice(0, 8)}`;
   const timestamp = String(Math.floor(Date.now() / 1000));

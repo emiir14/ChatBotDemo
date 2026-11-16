@@ -10,6 +10,7 @@ import {
   type ValidVehicleRow,
 } from "@/lib/stock-import";
 import { logStockChange, touchStockSettings } from "@/lib/stock-server";
+import { syncStockDemandsForPanel } from "@/lib/stock-alerts-server";
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
@@ -154,5 +155,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   await touchStockSettings(supabase);
-  return NextResponse.json({ ok: true, altas, modificados });
+  // Un solo sync al final: cubre altas, modificaciones y reemplazo total.
+  const alerts = await syncStockDemandsForPanel(supabase);
+  return NextResponse.json({ ok: true, altas, modificados, alerts });
 }

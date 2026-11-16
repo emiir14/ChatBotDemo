@@ -3,13 +3,11 @@
 import { useState, type JSX } from "react";
 import useSWR from "swr";
 import {
-  BellRing,
   Check,
   Clock,
   MessageCircle,
   PackageCheck,
   RotateCcw,
-  Search,
 } from "lucide-react";
 import { Shell } from "@/components/dashboard/Header";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -142,7 +140,6 @@ export default function AlertasPage(): JSX.Element {
   const [filter, setFilter] = useState<Filter>("abiertas");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [dismissingAll, setDismissingAll] = useState(false);
-  const [backfilling, setBackfilling] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const { data, error, mutate } = useSWR<StockAlertsResponse>(
@@ -197,30 +194,6 @@ export default function AlertasPage(): JSX.Element {
       showToast(err instanceof Error ? err.message : "No se pudieron descartar");
     } finally {
       setDismissingAll(false);
-    }
-  }
-
-  async function backfill(): Promise<void> {
-    setBackfilling(true);
-    try {
-      const res = await fetch("/api/dashboard/alerts/backfill", { method: "POST" });
-      const out = (await res.json()) as {
-        error?: string;
-        created?: number;
-        revisados?: number;
-        enStock?: number;
-        yaRegistrados?: number;
-      };
-      if (!res.ok) throw new Error(out.error ?? "No se pudo reconstruir");
-      showToast(
-        `Revisadas ${out.revisados ?? 0} conversaciones: ${out.created ?? 0} alertas nuevas, ` +
-          `${out.enStock ?? 0} ya estaban en stock, ${out.yaRegistrados ?? 0} ya registradas.`,
-      );
-      await mutate();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "No se pudo reconstruir");
-    } finally {
-      setBackfilling(false);
     }
   }
 
@@ -327,30 +300,6 @@ export default function AlertasPage(): JSX.Element {
             ))}
           </ul>
         )}
-
-        <section className="card p-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-sm font-bold">
-                <BellRing size={15} aria-hidden="true" /> Conversaciones anteriores
-              </p>
-              <p className="mt-0.5 text-xs text-(--ink-2)">
-                Reconstruye los pedidos guardados en el interés de cada conversación
-                (excluye los leads demo). No duplica los que ya existen.
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={backfilling}
-              onClick={backfill}
-              tooltip="Buscar pedidos sin stock en las conversaciones ya guardadas"
-            >
-              <Search size={15} aria-hidden="true" />
-              {backfilling ? "Buscando…" : "Buscar en conversaciones"}
-            </Button>
-          </div>
-        </section>
       </main>
 
       {toast && (
